@@ -1,0 +1,43 @@
+# This workflow will upload a Python Package using Poetry when a release is published
+
+name: Publish Python Package (PyPi)
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: release
+
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Set up Poetry
+        uses: Gr1N/setup-poetry@v9
+      - name: Bump Poetry version
+        run: |
+          tag=${{ github.event.release.tag_name }}
+          version_number=${tag#?}
+          poetry version $version_number
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v4
+        with:
+          message: "Bump version to ${{ github.event.release.tag_name }}"
+          add: "pyproject.toml"
+          ref: "main"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build package distribution
+        run: |
+          poetry build
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
