@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import urllib.parse
 from collections.abc import Mapping
 from json import JSONDecodeError
@@ -28,6 +29,7 @@ from .exceptions import (
 )
 from .models import EDEleve
 
+logger = logging.getLogger(__name__)
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
     await invocation["args"][0].login()
@@ -117,23 +119,35 @@ class EDClient:
             timeout=120,
         )
         if "GTK" in resp.cookies:
-            self.session.headers.update({"x-gtk": resp.cookies["GTK"]})
+            self.session.headers.update({"x-gtk": resp.cookies["GTK"].value})
             return
         raise GTKException("Unable to get GTK value from server.")
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         # Post credentials to get a token
+        # async with self.session.post(
+        #     f"{self.server_endpoint}/login.awp",
+        #     params={"v": self.api_version},
+        #     data=payload,
+        #     timeout=120) as response:
+        #     self.token = response.headers["x-token"]
+
+        logger.debug(f"payload: {payload}")
+        logger.debug(f"headers: {self.session.headers}")
+
         response = await self.session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
             data=payload,
             timeout=120,
         )
+        json = await response.json()
+        logger.debug(f"response: {json}")
 
         self.token = response.headers["x-token"]
         self.session.headers.update({"x-token": self.token})
-        return response.json()
+        return json 
 
     async def __get_qcm_connexion__(self) -> dict:
         """Obtenir le QCM donné lors d'une connexion à partir d'un nouvel appareil."""
@@ -144,7 +158,7 @@ class EDClient:
             timeout=120,
         )
         try:
-            json_resp = response.json()
+            json_resp = await response.json()
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {response.content}"
             raise QCMException(msg) from ex
@@ -167,7 +181,7 @@ class EDClient:
             data=f'data={{"choix": "{proposition}"}}',
             timeout=120,
         )
-        json_resp = response.json()
+        json_resp = await response.json()
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
@@ -182,12 +196,13 @@ class EDClient:
         await self.__get_gtk__()
         payload = (
             'data={"identifiant":"'
-            + self.username
+            + self.encodeString(self.username)
             + '", "motdepasse":"'
-            + self.password
+            + self.encodeString(self.password)
             + '", "isRelogin": false}'
         )
         first_token = await self.__get_token__(payload)
+
         # Si connexion initiale
         if first_token["code"] == ED_MFA_REQUIRED:
             try_login = 5
@@ -204,7 +219,7 @@ class EDClient:
                     response = base64.b64encode(
                         bytes(self.qcm_json[question][0], "utf-8")
                     ).decode("ascii")
-                    cn_et_cv = self.__post_qcm_connexion__(
+                    cn_et_cv = await self.__post_qcm_connexion__(
                         str(response),
                     )
                     # Si le quiz a été raté
@@ -233,12 +248,14 @@ class EDClient:
                 msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
                 raise QCMException(msg)
 
+            await self.__get_gtk__()
+            
             # Renvoyer une requête de connexion avec la double-authentification réussie
             payload = (
                 'data={"identifiant":"'
-                + self.username
+                + self.encodeString(self.username)
                 + '", "motdepasse":"'
-                + self.password
+                + self.encodeString(self.password)
                 + '", "isRelogin": false, "cn":"'
                 + cn
                 + '", "cv":"'
