@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Async Python client to interact with Ecole Directe API."
 license = { text = "LGPL-3.0-or-later" }
 readme = "README.rst"
-authors = ["Giga77","hacf-fr"]
-maintainers = ["Giga77","hacf-fr"]
+authors = [{ name ="Giga77"}]
+maintainers = [{ name ="Giga77"}]
 classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: Free for non-commercial use",
