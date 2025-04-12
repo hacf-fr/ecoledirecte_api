@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import logging
-import urllib.parse
 from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
@@ -30,6 +29,7 @@ from .exceptions import (
 from .models import EDEleve
 
 logger = logging.getLogger(__name__)
+
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
     await invocation["args"][0].login()
@@ -147,7 +147,7 @@ class EDClient:
 
         self.token = response.headers["x-token"]
         self.session.headers.update({"x-token": self.token})
-        return json 
+        return json
 
     async def __get_qcm_connexion__(self) -> dict:
         """Obtenir le QCM donné lors d'une connexion à partir d'un nouvel appareil."""
@@ -249,7 +249,7 @@ class EDClient:
                 raise QCMException(msg)
 
             await self.__get_gtk__()
-            
+
             # Renvoyer une requête de connexion avec la double-authentification réussie
             payload = (
                 'data={"identifiant":"'
