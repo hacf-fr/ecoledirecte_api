@@ -25,21 +25,21 @@ Features
 * TODO
 
 Installation
---------
+------------
 
 .. code:: console
 
    $ pip install ecoledirecte
 
 Getting started
---------
+---------------
 
 .. code:: python
    from ecoledirecte import EcoleDirecte
    TODO
 
 Development - DevContainer (recommended)
---------
+----------------------------------------
 
 If you use Visual Studio Code with Docker or GitHub CodeSpaces, you can leverage the available devcontainer. This will install all required dependencies and tools and has the right Python version available. Easy!
 
