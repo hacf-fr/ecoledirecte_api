@@ -1,37 +1,48 @@
 =================
 Ecole Directe API
 =================
+|PyPI| |Python Version| |License|
 
-
-.. image:: https://img.shields.io/pypi/v/ecoledirecte_api.svg
-        :target: https://pypi.python.org/pypi/ecoledirecte_api
-
-.. image:: https://img.shields.io/travis/Giga77/ecoledirecte_api.svg
-        :target: https://travis-ci.com/Giga77/ecoledirecte_api
-
-.. image:: https://readthedocs.org/projects/ecoledirecte-api/badge/?version=latest
-        :target: https://ecoledirecte-api.readthedocs.io/en/latest/?version=latest
-        :alt: Documentation Status
-
-
-.. image:: https://pyup.io/repos/github/Giga77/ecoledirecte_api/shield.svg
-     :target: https://pyup.io/repos/github/Giga77/ecoledirecte_api/
-     :alt: Updates
-
-
+.. |PyPI| image:: https://img.shields.io/pypi/v/ecoledirecte.svg
+   :target: https://pypi.org/project/ecoledirecte/
+   :alt: PyPI
+.. |Python Version| image:: https://img.shields.io/pypi/pyversions/ecoledirecte
+   :target: https://pypi.org/project/ecoledirecte
+   :alt: Python Version
+.. |License| image:: https://img.shields.io/pypi/l/ecoledirecte
+   :target: https://opensource.org/licenses/lgpl-3-0
+   :alt: License
 
 A fully async and easy to use API client for the Ecole Directe API.
 This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can use the [following examples](#getting-started) to get started, or look at the [Home Assistant Code](https://github.com/hacf-fr/hass-ecoledirecte) for more examples.
 
-
 * Free software: GNU General Public License v3
 * Documentation: https://ecoledirecte-api.readthedocs.io.
-
 
 Features
 --------
 
 * TODO
+
+Installation
+--------
+
+.. code:: console
+
+   $ pip install ecoledirecte
+
+Getting started
+--------
+
+.. code:: python
+   from ecoledirecte import EcoleDirecte
+   TODO
+
+Development - DevContainer (recommended)
+--------
+
+If you use Visual Studio Code with Docker or GitHub CodeSpaces, you can leverage the available devcontainer. This will install all required dependencies and tools and has the right Python version available. Easy!
+
 
 Credits
 -------
