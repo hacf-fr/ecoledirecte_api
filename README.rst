@@ -14,7 +14,7 @@ Ecole Directe API
    :alt: License
 
 A fully async and easy to use API client for the Ecole Directe API.
-This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can look at the `Home Assistant Code` for more examples.
+This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can look at the `Home Assistant Code`_ for more examples.
 
 * Free software: GNU General Public License v3
 * Documentation: https://ecoledirecte-api.readthedocs.io.
