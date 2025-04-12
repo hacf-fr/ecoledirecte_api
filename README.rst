@@ -35,6 +35,7 @@ Getting started
 ---------------
 
 .. code:: python
+        
    from ecoledirecte import EcoleDirecte
    TODO
 
