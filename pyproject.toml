@@ -1,5 +1,6 @@
 [project]
 name = "ecoledirecte"
+version = "0.1.1"
 description = "Async Python client to interact with Ecole Directe API."
 license = { text = "LGPL-3.0-or-later" }
 readme = "README.rst"
@@ -27,7 +28,6 @@ repository = "https://github.com/hacf-fr/ecoledirecte_api"
 "Bug Tracker" = "https://github.com/hacf-fr/ecoledirecte_api/issues"
 
 [tool.poetry]
-version = "0.1.1"
 packages = [
     { include = "ecoledirecte_api", from = "src" }
 ]
@@ -45,14 +45,6 @@ flake8 = "^7.1.1"
 pyupgrade = "^3.17.0"
 pytest-asyncio = ">=0.23.8,<0.27.0"
 typing-extensions=">=4.13.2"
-
-[tool.poetry.requires-plugins]
-poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-style = "semver"
 
 # Mypy
 # ----
@@ -72,5 +64,5 @@ allow_untyped_defs = true
 disable_error_code = "attr-defined"
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
