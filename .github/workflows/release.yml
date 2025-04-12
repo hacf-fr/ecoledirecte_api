@@ -3,13 +3,13 @@
 name: Publish Python Package (PyPi)
 
 on:
-  release:
-    types: [published]
-
+  push:
+    branches:
+      - main
+      
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: release
 
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
