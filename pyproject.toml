@@ -79,5 +79,5 @@ allow_untyped_defs = true
 disable_error_code = "attr-defined"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
 build-backend = "poetry.core.masonry.api"
