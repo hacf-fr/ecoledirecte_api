@@ -14,7 +14,7 @@ Ecole Directe API
    :alt: License
 
 A fully async and easy to use API client for the Ecole Directe API.
-This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can use the [following examples](#getting-started) to get started, or look at the [Home Assistant Code](https://github.com/hacf-fr/hass-ecoledirecte) for more examples.
+This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can look at the `Home Assistant Code` for more examples.
 
 * Free software: GNU General Public License v3
 * Documentation: https://ecoledirecte-api.readthedocs.io.
@@ -51,3 +51,5 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. _`Home Assistant Code`: https://github.com/hacf-fr/hass-ecoledirecte
+
