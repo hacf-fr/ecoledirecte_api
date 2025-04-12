@@ -17,17 +17,39 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Set up Poetry
         uses: Gr1N/setup-poetry@v9
-      - name: Bump Poetry version
+
+      - name: Check if there is a parent commit
+        id: check-parent-commit
         run: |
-          tag=${{ github.event.release.tag_name }}
-          version_number=${tag#?}
-          poetry version $version_number
+          echo "sha=$(git rev-parse --verify --quiet HEAD^)" >> $GITHUB_OUTPUT
+
+      - name: Detect and tag new version
+        id: check-version
+        if: steps.check-parent-commit.outputs.sha
+        uses: salsify/action-detect-and-tag-new-version@v2.0.3
+        with:
+          version-command: |
+            bash -o pipefail -c "poetry version | awk '{ print \$2 }'"
+
+      - name: Bump version for developmental release
+        if: "! steps.check-version.outputs.tag"
+        run: |
+          poetry version patch &&
+          version=$(poetry version | awk '{ print $2 }') &&
+          poetry version $version.dev.$(date +%s)
+
+      - name: Build package
+        run: |
+          poetry build --ansi
+
       - name: Commit changes
         uses: EndBug/add-and-commit@v9
         with:
@@ -36,8 +58,6 @@ jobs:
           ref: "main"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build package distribution
-        run: |
-          poetry build
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
