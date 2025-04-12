@@ -1,21 +1,29 @@
-[tool.poetry]
+[project]
 name = "ecoledirecte_api"
 version = "0.1.0"
 description = "Async Python client to interact with Ecole Directe API."
+license = { text = "LGPL-3.0-or-later" }
 readme = "README.rst"
 authors = ["Giga77","hacf-fr"]
 maintainers = ["Giga77","hacf-fr"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: Free for non-commercial use",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Natural Language :: French",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+[project.urls]
+Changelog = "https://github.com/hacf-fr/ecoledirecte_api/releases"
 homepage = "https://github.com/hacf-fr/ecoledirecte_api"
 repository = "https://github.com/hacf-fr/ecoledirecte_api"
+"Bug Tracker" = "https://github.com/hacf-fr/ecoledirecte_api/issues"
+
+[tool.poetry]
 packages = [
-    { include = "ecoledirecte_api" }
+    { include = "ecoledirecte_api", from = "src" }
 ]
-classifiers = [
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-]
-license = {text = "GNU General Public License v3"}
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
@@ -28,10 +36,6 @@ boto3 = "^1.18.59"
 warrant-lite = "^1.0.4"
 backports-strenum = { version = "^1.2.4", python = "<3.11" }
 
-[tool.poetry.urls]
-Changelog = "https://github.com/hacf-fr/ecoledirecte_api/releases"
-Bugs = "https://github.com/hacf-fr/ecoledirecte_api/issues"
-Homepage = "https://github.com/hacf-fr/ecoledirecte_api"
 
 [tool.poetry.group.dev.dependencies]
 tox = "^4.17.1"
