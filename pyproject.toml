@@ -13,8 +13,8 @@ classifiers = [
     "Natural Language :: French",
     "Topic :: Internet :: WWW/HTTP",
 ]
+requires-python = ">=3.10,<4.0"
 dependencies = [
-    "python>=3.10,<4.0",
     # Warning: as of 2024-04-23, aiohttp is pinned to 3.9.5 on HA-core
     "aiohttp>=3.9.5",
     "backoff>=1.10.0,<3.0",
