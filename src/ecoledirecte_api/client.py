@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import logging
 from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
@@ -17,25 +16,20 @@ from aiohttp import (
     ServerDisconnectedError,
 )
 
-from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_OK
+from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_OK, LOGGER
 from .exceptions import (
     EcoleDirecteException,
     GTKException,
     LoginException,
     MFARequiredException,
+    NotAuthenticatedException,
     QCMException,
     ServiceUnavailableException,
 )
-from .models import EDEleve
-
-logger = logging.getLogger(__name__)
 
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
     await invocation["args"][0].login()
-
-
-# pylint: disable=too-many-instance-attributes, too-many-branches
 
 
 class EDClient:
@@ -125,17 +119,9 @@ class EDClient:
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
-        # Post credentials to get a token
-        # async with self.session.post(
-        #     f"{self.server_endpoint}/login.awp",
-        #     params={"v": self.api_version},
-        #     data=payload,
-        #     timeout=120) as response:
-        #     self.token = response.headers["x-token"]
-
-        logger.debug(f"payload: {payload}")
-        logger.debug(f"headers: {self.session.headers}")
-
+        LOGGER.debug(
+            f"headers request: [{self.session.headers}] - payload: [{payload}]"
+        )
         response = await self.session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
@@ -143,7 +129,8 @@ class EDClient:
             timeout=120,
         )
         json = await response.json()
-        logger.debug(f"response: {json}")
+        LOGGER.debug(f"headers response: {response.headers}")
+        LOGGER.debug(f"json response: {json}")
 
         self.token = response.headers["x-token"]
         self.session.headers.update({"x-token": self.token})
@@ -266,39 +253,65 @@ class EDClient:
                 + cv
                 + '"}]}'
             )
-            login = await self.__get_token__(payload)
+            return await self.__get_token__(payload)
 
-            self.data = login["data"]
-            self.id = self.data["accounts"][0]["id"]
-            self.identifiant = self.data["accounts"][0]["identifiant"]
-            self.id_login = self.data["accounts"][0]["idLogin"]
-            self.account_type = self.data["accounts"][0]["typeCompte"]
-            self.modules = []
-            for module in self.data["accounts"][0]["modules"]:
-                if module["enable"]:
-                    self.modules.append(module["code"])
-            self.eleves = []
-            if self.account_type == "E":
-                self.eleves.append(
-                    EDEleve(
-                        None,
-                        self.data["accounts"][0]["nomEtablissement"],
-                        self.id,
-                        self.data["accounts"][0]["prenom"],
-                        self.data["accounts"][0]["nom"],
-                        self.data["accounts"][0]["profile"]["classe"]["id"],
-                        self.data["accounts"][0]["profile"]["classe"]["libelle"],
-                        self.modules,
-                    )
-                )
-            elif "eleves" in self.data["accounts"][0]["profile"]:
-                for eleve in self.data["accounts"][0]["profile"]["eleves"]:
-                    self.eleves.append(
-                        EDEleve(
-                            eleve,
-                            self.data["accounts"][0]["nomEtablissement"],
-                        )
-                    )
+    async def __get(self, path: str) -> Any:
+        """Make a GET request to the Ecole Directe API"""
+        async with self.session.get(
+            f"{self.server_endpoint}{path}",
+        ) as response:
+            await self.check_response(response)
+            return await response.json()
+
+    async def __post(
+        self, path: str, params: dict | None = None, payload: Any | None = None
+    ) -> Any:
+        """Make a POST request to the Ecole Directe API"""
+
+        async with self.session.post(
+            url=f"{self.server.endpoint}{path}",
+            params=params,
+            data=payload,
+        ) as response:
+            await self.check_response(response)
+            return await response.json()
+
+    @staticmethod
+    async def check_response(response: ClientResponse) -> None:
+        """Check the response returned by the Ecole Directe API"""
+        try:
+            result = await response.json(content_type=None)
+        except JSONDecodeError as error:
+            result = await response.text()
+
+            if response.status >= 500 and response.status < 600:
+                raise ServiceUnavailableException(result) from error
+
+            raise EcoleDirecteException(
+                f"Unknown error while requesting {response.url}. {response.status} - {result}"
+            ) from error
+
+        if code := result.get("code"):
+            if code == ED_OK:
+                return
+
+            if code == ED_MFA_REQUIRED:
+                raise MFARequiredException()
+
+            if code == 505:
+                raise LoginException()
+
+            if code == 517:
+                raise EcoleDirecteException("La version de l'API utilisée est invalide")
+
+            if code == 520:
+                raise LoginException("Le token est invalide")
+
+            if code == 525:
+                raise LoginException("Le token est expiré")
+
+        # Undefined Ecole Directe exception
+        raise EcoleDirecteException(result)
 
     def encodeString(self, string):
         return (
@@ -326,64 +339,166 @@ class EDClient:
 
         return body[:-1]
 
-    # @backoff.on_exception(
-    #     backoff.expo,
-    #     (NotAuthenticatedException, ServerDisconnectedError, ClientConnectorError),
-    #     max_tries=2,
-    #     on_backoff=relogin,
-    # )
-    # async def get_device_definition(self, deviceurl: str) -> Any | None:
-    #     """
-    #     Retrieve a particular setup device definition
-    #     """
-    #     response: dict = await self.__get(
-    #         f"setup/devices/{urllib.parse.quote_plus(deviceurl)}"
-    #     )
+    @backoff.on_exception(
+        backoff.expo,
+        (NotAuthenticatedException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_messages(
+        self, family_id: str, eleve_id: str | None, annee_scolaire: str
+    ) -> dict | None:
+        """Get messages from Ecole Directe."""
+        payload = 'data={"anneeMessages":"' + annee_scolaire + '"}'
+        if eleve_id is None:
+            path = f"/familles/{family_id}/messages.awp"
+        else:
+            path = f"/eleves/{eleve_id}/messages.awp"
 
-    #     return response.get("definition")
+        return await self.__post(
+            path=path,
+            params={
+                "force": "false",
+                "typeRecuperation": "received",
+                "idClasseur": "0",
+                "orderBy": "date",
+                "order": "desc",
+                "query": "",
+                "onlyRead": "",
+                "page": "0",
+                "itemsPerPage": "100",
+                "getAll": "0",
+                "verbe": "get",
+                "v": APIVERSION,
+            },
+            payload=payload,
+        )
 
-    async def __get(self, path: str) -> Any:
-        """Make a GET request to the Ecole Directe API"""
-        async with self.session.get(
-            f"{self.server_endpoint}{path}",
-        ) as response:
-            await self.check_response(response)
-            return await response.json()
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_homeworks_by_date(self, eleve_id: str, date: str) -> dict:
+        """Get homeworks by date."""
+        return await self.__post(
+            path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload=None,
+        )
 
-    async def __post(
-        self, path: str, payload: Any | None = None, data: Any | None = None
-    ) -> Any:
-        """Make a POST request to the Ecole Directe API"""
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_homeworks(self, eleve_id: str) -> list:
+        """Get homeworks."""
+        return await self.__post(
+            path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload=None,
+        )
 
-        async with self.session.post(
-            f"{self.server.endpoint}{path}",
-            data=data,
-            json=payload,
-        ) as response:
-            await self.check_response(response)
-            return await response.json()
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_grades_evaluations(
+        self,
+        eleve_id: str,
+        annee_scolaire: str,
+    ) -> dict:
+        """Get grades."""
+        return await self.__post(
+            path=f"/eleves/{eleve_id}/notes.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload=f"data={{'anneeScolaire': '{annee_scolaire}'}}",
+        )
 
-    @staticmethod
-    async def check_response(response: ClientResponse) -> None:
-        """Check the response returned by the Ecole Directe API"""
-        try:
-            result = await response.json(content_type=None)
-        except JSONDecodeError as error:
-            result = await response.text()
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_vie_scolaire(self, eleve_id: str) -> dict:
+        """Get vie scolaire (absences, retards, etc.)."""
+        return await self.__post(
+            params=f"/eleves/{eleve_id}/viescolaire.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload="data={}",
+        )
 
-            if response.status >= 500 and response.status < 600:
-                raise ServiceUnavailableException(result) from error
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_lessons(self, eleve_id: str, date_debut: str, date_fin: str) -> list:
+        """Get lessons."""
+        return await self.__post(
+            path=f"/E/{eleve_id}/emploidutemps.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload=f"data={{'dateDebut': '{date_debut}','dateFin': '{
+                date_fin
+            }','avecTrous': false}}",
+        )
 
-            raise EcoleDirecteException(
-                f"Unknown error while requesting {response.url}. {response.status} - {result}"
-            ) from error
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_sondages(self) -> dict:
+        """Get sondages."""
+        return await self.__post(
+            path=f"/rdt/sondages.awp?v={APIVERSION}",
+            params={"v": APIVERSION},
+            payload=None,
+        )
 
-        if code := result.get("code"):
-            if code == ED_OK:
-                return
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_formulaires(self, account_type: str, id_entity: str) -> list:
+        """Get formulaires."""
+        payload = (
+            'data={"typeEntity": "' + account_type + '","idEntity":' + id_entity + "}"
+        )
+        return await self.__post(
+            path=f"/edforms.awp",
+            params={"verbe": "list", "v": APIVERSION},
+            payload=payload,
+        )
 
-            if code == ED_MFA_REQUIRED:
-                raise MFARequiredException()
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_classe(self, classe_id: str) -> None:
+        """Get classe."""
+        json_resp = self.__post(
+            path=f"/Classes/{classe_id}/viedelaclasse.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload="data={}",
+        )
+        LOGGER.debug("get_classeV1: [%s]", json_resp)
 
-        # Undefined Ecole Directe exception
-        raise EcoleDirecteException(result)
+        json_resp = self.__post(
+            path=f"/R/{classe_id}/viedelaclasse.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload="data={}",
+        )
+        LOGGER.debug("get_classeV2: [%s]", json_resp)
