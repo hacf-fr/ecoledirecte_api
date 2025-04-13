@@ -14,6 +14,10 @@ class LoginException(BaseEcoleDirecteException):
     """Raised when MFA is required."""
 
 
+class NotAuthenticatedException(LoginException):
+    """Raised when user is not authenticated."""
+
+
 class MFARequiredException(LoginException):
     """Raised when MFA is required."""
 
