@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
 from typing import Any
-
 import backoff
 from aiohttp import (
     ClientConnectorError,
@@ -38,12 +37,13 @@ class EDClient:
     username: str
     password: str
     session: ClientSession
+    callbacks = None
 
     def __init__(
         self,
         username: str,
         password: str,
-        qcm_json: Any,
+        qcm_json: dict,
         server_endpoint: str = APIURL,
         api_version: str = APIVERSION,
         session: ClientSession | None = None,
@@ -53,6 +53,9 @@ class EDClient:
 
         :param username: the username
         :param password: the password
+        :param qcm_json: the QCM json
+        :param server_endpoint: the server endpoint (default: APIURL)
+        :param api_version: the API version (default: APIVERSION)
         :param session: optional ClientSession
         """
 
@@ -146,6 +149,7 @@ class EDClient:
         )
         try:
             json_resp = await response.json()
+            LOGGER.debug(f"get_qcm_connexion={json_resp}]")
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {response.content}"
             raise QCMException(msg) from ex
@@ -176,9 +180,16 @@ class EDClient:
             return json_resp["data"]
         raise QCMException(json_resp)
 
+    def on_new_question(self, callback):
+        if self.callbacks is None:
+            self.callbacks = {}
+            self.callbacks["new_question"] = [callback]
+        else:
+            self.callbacks["new_question"].append(callback)
+
     async def login(
         self,
-    ) -> bool:
+    ) -> Any:
         """Authenticate and create an API session allowing access to the other operations."""
         await self.__get_gtk__()
         payload = (
@@ -221,14 +232,12 @@ class EDClient:
                     rep.append(base64.b64decode(proposition).decode("utf-8"))
 
                 self.qcm_json[question] = rep
+                if self.callbacks is not None and "new_question" in self.callbacks:
+                    LOGGER.info(f"callback new_question : [{question}]")
+                    for callback in self.callbacks["new_question"]:
+                        # wait for event to be handled
+                        callback(self.qcm_json)
 
-                # trigger event self.qcm_json
-                # event_data = {
-                #     "device_id": "ED - " + self.username,
-                #     "type": "new_qcm",
-                #     "question": question,
-                # }
-                # self.hass.bus.fire(EVENT_TYPE, event_data)
                 try_login -= 1
 
             if try_login == 0:
@@ -346,8 +355,8 @@ class EDClient:
         on_backoff=relogin,
     )
     async def get_messages(
-        self, family_id: str, eleve_id: str | None, annee_scolaire: str
-    ) -> dict | None:
+        self, family_id: str | None, eleve_id: str | None, annee_scolaire: str
+    ) -> dict:
         """Get messages from Ecole Directe."""
         payload = 'data={"anneeMessages":"' + annee_scolaire + '"}'
         if eleve_id is None:
@@ -394,7 +403,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_homeworks(self, eleve_id: str) -> list:
+    async def get_homeworks(self, eleve_id: str) -> dict:
         """Get homeworks."""
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
@@ -429,7 +438,7 @@ class EDClient:
     async def get_vie_scolaire(self, eleve_id: str) -> dict:
         """Get vie scolaire (absences, retards, etc.)."""
         return await self.__post(
-            params=f"/eleves/{eleve_id}/viescolaire.awp",
+            path=f"/eleves/{eleve_id}/viescolaire.awp",
             params={"verbe": "get", "v": APIVERSION},
             payload="data={}",
         )
@@ -440,7 +449,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_lessons(self, eleve_id: str, date_debut: str, date_fin: str) -> list:
+    async def get_lessons(self, eleve_id: str, date_debut: str, date_fin: str) -> dict:
         """Get lessons."""
         return await self.__post(
             path=f"/E/{eleve_id}/emploidutemps.awp",
@@ -470,7 +479,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_formulaires(self, account_type: str, id_entity: str) -> list:
+    async def get_formulaires(self, account_type: str, id_entity: str) -> dict:
         """Get formulaires."""
         payload = (
             'data={"typeEntity": "' + account_type + '","idEntity":' + id_entity + "}"
