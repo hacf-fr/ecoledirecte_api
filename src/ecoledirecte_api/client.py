@@ -278,7 +278,7 @@ class EDClient:
         """Make a POST request to the Ecole Directe API"""
 
         async with self.session.post(
-            url=f"{self.server.endpoint}{path}",
+            url=f"{self.server_endpoint}{path}",
             params=params,
             data=payload,
         ) as response:
