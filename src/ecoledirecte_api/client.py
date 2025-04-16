@@ -482,10 +482,14 @@ class EDClient:
     async def get_formulaires(self, account_type: str, id_entity: str) -> dict:
         """Get formulaires."""
         payload = (
-            'data={"typeEntity": "' + account_type + '","idEntity":' + id_entity + "}"
+            'data={"typeEntity": "'
+            + str(account_type)
+            + '","idEntity":'
+            + str(id_entity)
+            + "}"
         )
         return await self.__post(
-            path=f"/edforms.awp",
+            path="/edforms.awp",
             params={"verbe": "list", "v": APIVERSION},
             payload=payload,
         )
