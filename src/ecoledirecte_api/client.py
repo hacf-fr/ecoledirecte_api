@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
@@ -15,7 +16,7 @@ from aiohttp import (
     ServerDisconnectedError,
 )
 
-from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_OK, LOGGER
+from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_OK
 from .exceptions import (
     EcoleDirecteException,
     GTKException,
@@ -25,6 +26,8 @@ from .exceptions import (
     QCMException,
     ServiceUnavailableException,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
@@ -269,7 +272,7 @@ class EDClient:
         async with self.session.get(
             f"{self.server_endpoint}{path}",
         ) as response:
-            await self.check_response(response)
+            await self.check_response(response=response, path=path)
             return await response.json()
 
     async def __post(
@@ -282,11 +285,16 @@ class EDClient:
             params=params,
             data=payload,
         ) as response:
-            await self.check_response(response)
+            await self.check_response(response, path, params, payload)
             return await response.json()
 
     @staticmethod
-    async def check_response(response: ClientResponse) -> None:
+    async def check_response(
+        response: ClientResponse,
+        path: str,
+        params: dict | None = None,
+        payload: Any | None = None,
+    ) -> None:
         """Check the response returned by the Ecole Directe API"""
         try:
             result = await response.json(content_type=None)
@@ -297,7 +305,11 @@ class EDClient:
                 raise ServiceUnavailableException(result) from error
 
             raise EcoleDirecteException(
-                f"Unknown error while requesting {response.url}. {response.status} - {result}"
+                path=path,
+                params=params,
+                payload=payload,
+                status=response.status,
+                message=result,
             ) from error
 
         if code := result.get("code"):
@@ -320,7 +332,9 @@ class EDClient:
                 raise LoginException("Le token est expiré")
 
         # Undefined Ecole Directe exception
-        raise EcoleDirecteException(result)
+        raise EcoleDirecteException(
+            path=path, params=params, payload=payload, message=result
+        )
 
     def encodeString(self, string):
         return (
