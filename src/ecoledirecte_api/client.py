@@ -408,7 +408,7 @@ class EDClient:
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload=None,
+            payload="data={}",
         )
 
     @backoff.on_exception(
@@ -422,7 +422,7 @@ class EDClient:
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload=None,
+            payload="data={}",
         )
 
     @backoff.on_exception(
@@ -484,7 +484,7 @@ class EDClient:
         return await self.__post(
             path=f"/rdt/sondages.awp?v={APIVERSION}",
             params={"v": APIVERSION},
-            payload=None,
+            payload="data={}",
         )
 
     @backoff.on_exception(
