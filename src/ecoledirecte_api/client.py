@@ -27,7 +27,7 @@ from .exceptions import (
     ServiceUnavailableException,
 )
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger()
 
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
