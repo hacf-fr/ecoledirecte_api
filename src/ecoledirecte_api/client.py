@@ -140,6 +140,10 @@ class EDClient:
 
         self.token = response.headers["x-token"]
         self.session.headers.update({"x-token": self.token})
+
+        if "x-gtk" in self.session.headers:
+            self.session.headers.pop("x-gtk")
+
         return json
 
     async def __get_qcm_connexion__(self) -> dict:
@@ -286,7 +290,7 @@ class EDClient:
             data=payload,
         ) as response:
             await self.check_response(response, path, params, payload)
-            return await response.json()
+            return await response.json(content_type=None)
 
     @staticmethod
     async def check_response(
