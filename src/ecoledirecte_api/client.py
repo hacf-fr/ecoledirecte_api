@@ -39,7 +39,7 @@ class EDClient:
 
     username: str
     password: str
-    session: ClientSession
+    _session: ClientSession
     callbacks = None
 
     def __init__(
@@ -49,7 +49,6 @@ class EDClient:
         qcm_json: dict,
         server_endpoint: str = APIURL,
         api_version: str = APIVERSION,
-        session: ClientSession | None = None,
     ) -> None:
         """
         Constructor
@@ -59,7 +58,6 @@ class EDClient:
         :param qcm_json: the QCM json
         :param server_endpoint: the server endpoint (default: APIURL)
         :param api_version: the API version (default: APIVERSION)
-        :param session: optional ClientSession
         """
 
         self.username = username
@@ -67,7 +65,7 @@ class EDClient:
         self.qcm_json = qcm_json
         self.server_endpoint = server_endpoint
         self.api_version = api_version
-        self.session = session if session else self.__get_new_client__()
+        self._session = self.__get_new_client__()
 
     async def __aenter__(self) -> EDClient:
         return self
@@ -82,7 +80,7 @@ class EDClient:
 
     async def close(self) -> None:
         """Close the session."""
-        await self.session.close()
+        await self._session.close()
 
     def __get_new_client__(self) -> ClientSession:
         """Create a new aiohttp client session."""
@@ -110,82 +108,82 @@ class EDClient:
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
         # first call to get a cookie
-        if "x-gtk" in self.session.headers:
-            self.session.headers.pop("x-gtk")
-        resp = await self.session.get(
+        if "x-gtk" in self._session.headers:
+            self._session.headers.pop("x-gtk")
+        async with self._session.get(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version, "gtk": 1},
             data=None,
             timeout=120,
-        )
-        if "GTK" in resp.cookies:
-            self.session.headers.update({"x-gtk": resp.cookies["GTK"].value})
-            return
-        raise GTKException("Unable to get GTK value from server.")
+        ) as resp:
+            if "GTK" in resp.cookies:
+                self._session.headers.update({"x-gtk": resp.cookies["GTK"].value})
+                return
+            raise GTKException("Unable to get GTK value from server.")
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         LOGGER.debug(
-            f"headers request: [{self.session.headers}] - payload: [{payload}]"
+            f"headers request: [{self._session.headers}] - payload: [{payload}]"
         )
-        response = await self.session.post(
+        async with self._session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
             data=payload,
             timeout=120,
-        )
-        json = await response.json()
-        LOGGER.debug(f"headers response: {response.headers}")
-        LOGGER.debug(f"json response: {json}")
+        ) as response:
+            json = await response.json()
+            LOGGER.debug(f"headers response: {response.headers}")
+            LOGGER.debug(f"json response: {json}")
 
-        self.token = response.headers["x-token"]
-        self.session.headers.update({"x-token": self.token})
+            self.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.token})
 
-        if "x-gtk" in self.session.headers:
-            self.session.headers.pop("x-gtk")
+            if "x-gtk" in self._session.headers:
+                self._session.headers.pop("x-gtk")
 
-        return json
+            return json
 
     async def __get_qcm_connexion__(self) -> dict:
         """Obtenir le QCM donné lors d'une connexion à partir d'un nouvel appareil."""
-        response = await self.session.post(
+        async with self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "get", "v": self.api_version},
             data="data={}",
             timeout=120,
-        )
-        try:
-            json_resp = await response.json()
-            LOGGER.debug(f"get_qcm_connexion={json_resp}]")
-        except Exception as ex:
-            msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {response.content}"
-            raise QCMException(msg) from ex
+        ) as response:
+            try:
+                json_resp = await response.json()
+                LOGGER.debug(f"get_qcm_connexion={json_resp}]")
+            except Exception as ex:
+                msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {response.content}"
+                raise QCMException(msg) from ex
 
-        if json_resp["code"] != ED_OK:
+            if json_resp["code"] != ED_OK:
+                raise QCMException(json_resp)
+
+            if "data" in json_resp:
+                self.token = response.headers["x-token"]
+                self._session.headers.update({"x-token": self.token})
+                return json_resp["data"]
+
             raise QCMException(json_resp)
-
-        if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self.session.headers.update({"x-token": self.token})
-            return json_resp["data"]
-
-        raise QCMException(json_resp)
 
     async def __post_qcm_connexion__(self, proposition: str) -> dict:
         """Renvoyer la réponse du QCM donné."""
-        response = await self.session.post(
+        async with self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
             data=f'data={{"choix": "{proposition}"}}',
             timeout=120,
-        )
-        json_resp = await response.json()
+        ) as response:
+            json_resp = await response.json()
 
-        if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self.session.headers.update({"x-token": self.token})
-            return json_resp["data"]
-        raise QCMException(json_resp)
+            if "data" in json_resp:
+                self.token = response.headers["x-token"]
+                self._session.headers.update({"x-token": self.token})
+                return json_resp["data"]
+            raise QCMException(json_resp)
 
     def on_new_question(self, callback):
         if self.callbacks is None:
@@ -273,7 +271,7 @@ class EDClient:
 
     async def __get(self, path: str) -> Any:
         """Make a GET request to the Ecole Directe API"""
-        async with self.session.get(
+        async with self._session.get(
             f"{self.server_endpoint}{path}",
         ) as response:
             await self.check_response(response=response, path=path)
@@ -284,7 +282,7 @@ class EDClient:
     ) -> Any:
         """Make a POST request to the Ecole Directe API"""
 
-        async with self.session.post(
+        async with self._session.post(
             url=f"{self.server_endpoint}{path}",
             params=params,
             data=payload,
