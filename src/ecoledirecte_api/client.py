@@ -65,6 +65,7 @@ class EDClient:
         self.qcm_json = qcm_json
         self.server_endpoint = server_endpoint
         self.api_version = api_version
+        self._session: ClientSession = None
 
     async def __aenter__(self) -> EDClient:
         return self
