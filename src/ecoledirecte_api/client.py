@@ -65,7 +65,6 @@ class EDClient:
         self.qcm_json = qcm_json
         self.server_endpoint = server_endpoint
         self.api_version = api_version
-        self._session = self.__get_new_client__()
 
     async def __aenter__(self) -> EDClient:
         return self
@@ -197,6 +196,10 @@ class EDClient:
         self,
     ) -> Any:
         """Authenticate and create an API session allowing access to the other operations."""
+        if self._session is not None:
+            await self._session.close()
+        self._session = self.__get_new_client__()
+
         await self.__get_gtk__()
         payload = (
             'data={"identifiant":"'
