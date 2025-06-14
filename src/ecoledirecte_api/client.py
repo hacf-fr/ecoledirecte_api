@@ -133,7 +133,13 @@ class EDClient:
             data=payload,
             timeout=120,
         )
-        json = await response.json()
+        await self.check_response(
+            response=response,
+            path=f"{self.server_endpoint}/login.awp",
+            payload=payload,
+            bypassMFA=True,
+        )
+        json = await response.json(content_type=None)
         LOGGER.debug(f"headers response: {response.headers}")
         LOGGER.debug(f"json response: {json}")
 
@@ -154,7 +160,7 @@ class EDClient:
             timeout=120,
         )
         try:
-            json_resp = await response.json()
+            json_resp = await response.json(content_type=None)
             LOGGER.debug(f"get_qcm_connexion={json_resp}]")
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {response.content}"
@@ -178,7 +184,7 @@ class EDClient:
             data=f'data={{"choix": "{proposition}"}}',
             timeout=120,
         )
-        json_resp = await response.json()
+        json_resp = await response.json(content_type=None)
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
@@ -280,7 +286,7 @@ class EDClient:
             f"{self.server_endpoint}{path}",
         )
         await self.check_response(response=response, path=path)
-        return await response.json()
+        return await response.json(content_type=None)
 
     async def __post(
         self, path: str, params: dict | None = None, payload: Any | None = None
@@ -301,6 +307,7 @@ class EDClient:
         path: str,
         params: dict | None = None,
         payload: Any | None = None,
+        bypassMFA: bool = False,
     ) -> None:
         """Check the response returned by the Ecole Directe API"""
         try:
@@ -323,20 +330,48 @@ class EDClient:
             if code == ED_OK:
                 return
 
+            if code == ED_MFA_REQUIRED and bypassMFA is True:
+                return
+
             if code == ED_MFA_REQUIRED:
-                raise MFARequiredException()
+                raise MFARequiredException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="MFARequiredException",
+                )
 
             if code == 505:
-                raise LoginException()
+                raise LoginException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="LoginException",
+                )
 
             if code == 517:
-                raise EcoleDirecteException("La version de l'API utilisée est invalide")
+                raise EcoleDirecteException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="La version de l'API utilisée est invalide",
+                )
 
             if code == 520:
-                raise LoginException("Le token est invalide")
+                raise LoginException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="Le token est invalide",
+                )
 
             if code == 525:
-                raise LoginException("Le token est expiré")
+                raise LoginException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="Le token est expiré",
+                )
 
         # Undefined Ecole Directe exception
         raise EcoleDirecteException(
