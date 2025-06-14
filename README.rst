@@ -67,7 +67,7 @@ Getting started
                 qcm_json = json.load(fp)
     
                 async with EDClient(
-                    "FamilleGaspar", "Qm#8RqMf5f-bFTkR2*+", qcm_json
+                    "user", "password", qcm_json
                 ) as client:
                     client.on_new_question(save_question)
                     l = await client.login()
