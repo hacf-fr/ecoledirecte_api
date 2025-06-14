@@ -36,8 +36,57 @@ Getting started
 
 .. code:: python
         
-   from ecoledirecte import EcoleDirecte
-   TODO
+"""Unit test package for ecoledirecte_api."""
+
+import asyncio
+import json
+import logging
+from pathlib import Path
+from ecoledirecte_api.client import EDClient
+from ecoledirecte_api.exceptions import BaseEcoleDirecteException
+
+logger = logging.getLogger(__name__)
+
+def save_question(qcm_json):
+    """Save question to file."""
+    with Path("qcm.json").open(
+        "w",
+        encoding="utf-8",
+    ) as fp:
+        json.dump(qcm_json, fp, indent=4, ensure_ascii=False)
+    logger.info("Saved question to file", qcm_json)
+
+
+async def main():
+    logging.basicConfig(filename="myapp.log", level=logging.DEBUG)
+    logger.info("Started")
+    try:
+        qcm_json = {}
+        with Path("qcm.json").open(
+            "r",
+            encoding="utf-8",
+        ) as fp:
+            qcm_json = json.load(fp)
+
+            async with EDClient(
+                "FamilleGaspar", "Qm#8RqMf5f-bFTkR2*+", qcm_json
+            ) as client:
+                client.on_new_question(save_question)
+                l = await client.login()
+                logger.info(f"l= {l}")
+                logger.info(f"Logged in as {client.username}")
+                logger.info("Finished")
+                await client.close()
+    except BaseEcoleDirecteException as e:
+        logger.exception(e.message)
+        return
+    except Exception as e:
+        logger.exception(e)
+        return
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
 
 Development - DevContainer (recommended)
 ----------------------------------------
