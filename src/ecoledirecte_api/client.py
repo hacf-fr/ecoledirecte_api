@@ -80,7 +80,8 @@ class EDClient:
 
     async def close(self) -> None:
         """Close the session."""
-        await self._session.close()
+        if self._session is not None:
+            await self._session.close()
 
     def __get_new_client__(self) -> ClientSession:
         """Create a new aiohttp client session."""
@@ -103,7 +104,8 @@ class EDClient:
                 "sec-fetch-site": "same-site",
                 "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
             },
-            trust_env=True,
+            # MODIFIÉ: Passe de True à False pour éviter la lecture bloquante du fichier .netrc
+            trust_env=False,
         )
 
     async def __get_gtk__(self) -> None:
@@ -513,6 +515,20 @@ class EDClient:
             payload=f"data={{'dateDebut': '{date_debut}','dateFin': '{
                 date_fin
             }','avecTrous': false}}",
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_all_wallet_balances(self) -> dict:
+        """Get all wallet balances for the account."""
+        return await self.__post(
+            path="/comptes/sansdetails.awp",
+            params={"verbe": "get", "v": APIVERSION},
+            payload="data={}",
         )
 
     @backoff.on_exception(
