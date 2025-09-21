@@ -49,3 +49,7 @@ class GTKException(LoginException):
 
 class QCMException(LoginException):
     """Raised when QCM stuff is not good."""
+
+
+class NoDataException(LoginException):
+    """Raised when ED return 210."""

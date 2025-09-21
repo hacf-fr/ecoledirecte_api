@@ -16,12 +16,13 @@ from aiohttp import (
     ServerDisconnectedError,
 )
 
-from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_OK
+from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_NODATA, ED_OK
 from .exceptions import (
     EcoleDirecteException,
     GTKException,
     LoginException,
     MFARequiredException,
+    NoDataException,
     NotAuthenticatedException,
     QCMException,
     ServiceUnavailableException,
@@ -334,6 +335,14 @@ class EDClient:
 
             if code == ED_MFA_REQUIRED and bypassMFA is True:
                 return
+
+            if code == ED_NODATA:
+                raise NoDataException(
+                    path=path,
+                    params=params,
+                    payload=payload,
+                    message="NoDataException",
+                )
 
             if code == ED_MFA_REQUIRED:
                 raise MFARequiredException(
