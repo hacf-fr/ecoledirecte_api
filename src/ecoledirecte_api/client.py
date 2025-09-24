@@ -22,7 +22,6 @@ from .exceptions import (
     GTKException,
     LoginException,
     MFARequiredException,
-    NoDataException,
     NotAuthenticatedException,
     QCMException,
     ServiceUnavailableException,
@@ -333,16 +332,11 @@ class EDClient:
             if code == ED_OK:
                 return
 
-            if code == ED_MFA_REQUIRED and bypassMFA is True:
+            if code == ED_NODATA:
                 return
 
-            if code == ED_NODATA:
-                raise NoDataException(
-                    path=path,
-                    params=params,
-                    payload=payload,
-                    message="NoDataException",
-                )
+            if code == ED_MFA_REQUIRED and bypassMFA is True:
+                return
 
             if code == ED_MFA_REQUIRED:
                 raise MFARequiredException(
