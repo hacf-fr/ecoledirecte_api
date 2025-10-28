@@ -478,6 +478,34 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
+    async def post_homework(
+        self, eleve_id: str, devoir_id: int, effectue: bool
+    ) -> dict:
+        """Post homework."""
+        if effectue:
+            payload = (
+                'data={"idDevoirsEffectues": ['
+                + str(devoir_id)
+                + '],"idDevoirsNonEffectues": []}'
+            )
+        else:
+            payload = (
+                'data={"idDevoirsEffectues": [],"idDevoirsNonEffectues": ['
+                + str(devoir_id)
+                + "]}"
+            )
+        return await self.__post(
+            path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
+            params={"verbe": "put", "v": APIVERSION},
+            payload=payload,
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
     async def get_grades_evaluations(
         self,
         eleve_id: str,
