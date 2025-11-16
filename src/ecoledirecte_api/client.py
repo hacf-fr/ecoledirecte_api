@@ -41,7 +41,7 @@ class EDClient:
     username: str
     password: str
     _session: ClientSession
-    _token: str
+    token: str
     callbacks = None
 
     def __init__(
@@ -70,7 +70,7 @@ class EDClient:
         self.server_endpoint = server_endpoint
         self.api_version = api_version
         self._session: ClientSession = None
-        self._token: str = token
+        self.token: str = token
         self._cookie_jar: Any = cookie_jar
 
     async def __aenter__(self) -> EDClient:
@@ -119,8 +119,8 @@ class EDClient:
             trust_env=False,
         )
 
-        if self._token is not None:
-            self._session.headers.update({"x-token": self._token})
+        if self.token is not None:
+            self._session.headers.update({"x-token": self.token})
 
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
@@ -159,8 +159,8 @@ class EDClient:
         LOGGER.debug(f"headers response: {response.headers}")
         LOGGER.debug(f"json response: {json}")
 
-        self._token = response.headers["x-token"]
-        self._session.headers.update({"x-token": self._token})
+        self.token = response.headers["x-token"]
+        self._session.headers.update({"x-token": self.token})
 
         if "x-gtk" in self._session.headers:
             self._session.headers.pop("x-gtk")
@@ -187,8 +187,8 @@ class EDClient:
             raise QCMException(json_resp)
 
         if "data" in json_resp:
-            self._token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self._token})
+            self.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
 
         raise QCMException(json_resp)
@@ -204,8 +204,8 @@ class EDClient:
         json_resp = await response.json(content_type=None)
 
         if "data" in json_resp:
-            self._token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self._token})
+            self.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
         raise QCMException(json_resp)
 
@@ -220,7 +220,7 @@ class EDClient:
         LOGGER.debug("freshlogin...")
         await self.close()
         self._cookie_jar = None
-        self._token = None
+        self.token = None
         await self.login()
 
     async def login(
@@ -305,7 +305,6 @@ class EDClient:
                 + cv
                 + '"}]}'
             )
-            self._cookie_jar = self._session.cookie_jar
             return await self.__get_token__(payload)
 
     async def __get(self, path: str) -> Any:
@@ -439,6 +438,13 @@ class EDClient:
             body += ","
 
         return body[:-1]
+
+    async def get_cookies(self) -> Any:
+        """Get cookies."""
+        LOGGER.debug("get_cookies")
+        if self._session is None:
+            return None
+        return await self._session.cookie_jar
 
     @backoff.on_exception(
         backoff.expo,
