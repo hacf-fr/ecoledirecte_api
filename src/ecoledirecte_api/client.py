@@ -35,22 +35,46 @@ async def relogin(invocation: Mapping[str, Any]) -> None:
     await invocation["args"][0].freshlogin()
 
 
+class EDConnectionState:
+    """Connection state enumeration."""
+
+    token: str
+    cn: str
+    cv: str
+    cookie_jar: Any
+
+    def __init__(
+        self, token: str = None, cn: str = None, cv: str = None, cookie_jar: Any = None
+    ) -> None:
+        """Constructor."""
+        self.token = token
+        self.cn = cn
+        self.cv = cv
+        self.cookie_jar = cookie_jar
+
+    def reset(self) -> None:
+        """Reset the connection state."""
+        self.token = None
+        self.cn = None
+        self.cv = None
+        self.cookie_jar = None
+
+
 class EDClient:
     """Interface class for the Ecole Directe API"""
 
     username: str
     password: str
     _session: ClientSession
-    token: str
     callbacks = None
+    conn_state: EDConnectionState
 
     def __init__(
         self,
         username: str,
         password: str,
         qcm_json: dict,
-        token: str | None = None,
-        cookie_jar: Any = None,
+        connection_state: EDConnectionState = EDConnectionState(),
         server_endpoint: str = APIURL,
         api_version: str = APIVERSION,
     ) -> None:
@@ -67,11 +91,10 @@ class EDClient:
         self.username = username
         self.password = password
         self.qcm_json = qcm_json
+        self.conn_state = connection_state
         self.server_endpoint = server_endpoint
         self.api_version = api_version
         self._session: ClientSession = None
-        self.token: str = token
-        self._cookie_jar: Any = cookie_jar
 
     async def __aenter__(self) -> EDClient:
         return self
@@ -93,7 +116,9 @@ class EDClient:
     def __get_new_client__(self) -> None:
         """Create a new aiohttp client session."""
 
-        LOGGER.debug("Creating new ClientSession with cookies: [%s]", self._cookie_jar)
+        LOGGER.debug(
+            "Creating new ClientSession with cookies: [%s]", self.conn_state.cookie_jar
+        )
 
         self._session = ClientSession(
             headers={
@@ -114,13 +139,13 @@ class EDClient:
                 "sec-fetch-site": "same-site",
                 "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
             },
-            cookie_jar=self._cookie_jar,
+            cookie_jar=self.conn_state.cookie_jar,
             # MODIFIÉ: Passe de True à False pour éviter la lecture bloquante du fichier .netrc
             trust_env=False,
         )
 
-        if self.token is not None:
-            self._session.headers.update({"x-token": self.token})
+        if self.conn_state is not None and self.conn_state.token is not None:
+            self._session.headers.update({"x-token": self.conn_state.token})
 
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
@@ -159,13 +184,13 @@ class EDClient:
         LOGGER.debug(f"headers response: {response.headers}")
         LOGGER.debug(f"json response: {json}")
 
-        self.token = response.headers["x-token"]
-        self._session.headers.update({"x-token": self.token})
+        self.conn_state.token = response.headers["x-token"]
+        self._session.headers.update({"x-token": self.conn_state.token})
 
         if "x-gtk" in self._session.headers:
             self._session.headers.pop("x-gtk")
 
-        self._cookie_jar = self._session.cookie_jar
+        self.conn_state.cookie_jar = self._session.cookie_jar
         return json
 
     async def __get_qcm_connexion__(self) -> dict:
@@ -187,8 +212,8 @@ class EDClient:
             raise QCMException(json_resp)
 
         if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
+            self.conn_state.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.conn_state.token})
             return json_resp["data"]
 
         raise QCMException(json_resp)
@@ -204,8 +229,8 @@ class EDClient:
         json_resp = await response.json(content_type=None)
 
         if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
+            self.conn_state.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.conn_state.token})
             return json_resp["data"]
         raise QCMException(json_resp)
 
@@ -219,8 +244,7 @@ class EDClient:
     async def freshlogin(self) -> None:
         LOGGER.debug("freshlogin...")
         await self.close()
-        self._cookie_jar = None
-        self.token = None
+        self.conn_state.reset()
         await self.login()
 
     async def login(
@@ -231,81 +255,79 @@ class EDClient:
             await self._session.close()
         self.__get_new_client__()
 
-        if self._cookie_jar is not None:
-            return
-
-        await self.__get_gtk__()
-        payload = (
-            'data={"identifiant":"'
-            + self.encodeString(self.username)
-            + '", "motdepasse":"'
-            + self.encodeString(self.password)
-            + '", "isRelogin": false}'
-        )
-        first_token = await self.__get_token__(payload)
-
-        # Si connexion initiale
-        if first_token["code"] == ED_MFA_REQUIRED:
-            try_login = 2
-
-            while try_login > 0:
-                # Obtenir le qcm de vérification et les propositions de réponse
-                qcm = await self.__get_qcm_connexion__()
-                question = base64.b64decode(qcm["question"]).decode("utf-8")
-
-                if question in self.qcm_json:
-                    if len(self.qcm_json[question]) > 1:
-                        try_login -= 1
-                        continue
-                    response = base64.b64encode(
-                        bytes(self.qcm_json[question][0], "utf-8")
-                    ).decode("ascii")
-                    cn_et_cv = await self.__post_qcm_connexion__(
-                        str(response),
-                    )
-                    # Si le quiz a été raté
-                    if not cn_et_cv:
-                        continue
-                    cn = cn_et_cv["cn"]
-                    cv = cn_et_cv["cv"]
-                    break
-                rep = []
-                propositions = qcm["propositions"]
-                for proposition in propositions:
-                    rep.append(base64.b64decode(proposition).decode("utf-8"))
-
-                self.qcm_json[question] = rep
-                if self.callbacks is not None and "new_question" in self.callbacks:
-                    LOGGER.info(f"callback new_question : [{question}]")
-                    for callback in self.callbacks["new_question"]:
-                        # wait for event to be handled
-                        await callback(self.qcm_json)
-
-                try_login -= 1
-
-            if try_login == 0:
-                msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
-                raise QCMException(msg)
-
+        if self.conn_state.cookie_jar is None:
             await self.__get_gtk__()
-
-            # Renvoyer une requête de connexion avec la double-authentification réussie
             payload = (
                 'data={"identifiant":"'
                 + self.encodeString(self.username)
                 + '", "motdepasse":"'
                 + self.encodeString(self.password)
-                + '", "isRelogin": false, "cn":"'
-                + cn
-                + '", "cv":"'
-                + cv
-                + '", "uuid": "", "fa": [{"cn": "'
-                + cn
-                + '", "cv": "'
-                + cv
-                + '"}]}'
+                + '", "isRelogin": false}'
             )
-            return await self.__get_token__(payload)
+            first_token = await self.__get_token__(payload)
+
+            # Si connexion initiale
+            if first_token["code"] == ED_MFA_REQUIRED:
+                try_login = 2
+
+                while try_login > 0:
+                    # Obtenir le qcm de vérification et les propositions de réponse
+                    qcm = await self.__get_qcm_connexion__()
+                    question = base64.b64decode(qcm["question"]).decode("utf-8")
+
+                    if question in self.qcm_json:
+                        if len(self.qcm_json[question]) > 1:
+                            try_login -= 1
+                            continue
+                        response = base64.b64encode(
+                            bytes(self.qcm_json[question][0], "utf-8")
+                        ).decode("ascii")
+                        cn_et_cv = await self.__post_qcm_connexion__(
+                            str(response),
+                        )
+                        # Si le quiz a été raté
+                        if not cn_et_cv:
+                            continue
+                        self.conn_state.cn = cn_et_cv["cn"]
+                        self.conn_state.cv = cn_et_cv["cv"]
+                        break
+                    rep = []
+                    propositions = qcm["propositions"]
+                    for proposition in propositions:
+                        rep.append(base64.b64decode(proposition).decode("utf-8"))
+
+                    self.qcm_json[question] = rep
+                    if self.callbacks is not None and "new_question" in self.callbacks:
+                        LOGGER.info(f"callback new_question : [{question}]")
+                        for callback in self.callbacks["new_question"]:
+                            # wait for event to be handled
+                            await callback(self.qcm_json)
+
+                    try_login -= 1
+
+                if try_login == 0:
+                    msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
+                    raise QCMException(msg)
+
+        await self.__get_gtk__()
+
+        # Renvoyer une requête de connexion avec la double-authentification réussie
+        payload = (
+            'data={"identifiant":"'
+            + self.encodeString(self.username)
+            + '", "motdepasse":"'
+            + self.encodeString(self.password)
+            + '", "isRelogin": false, "cn":"'
+            + self.conn_state.cn
+            + '", "cv":"'
+            + self.conn_state.cv
+            + '", "uuid": "", "fa": [{"cn": "'
+            + self.conn_state.cn
+            + '", "cv": "'
+            + self.conn_state.cv
+            + '"}]}'
+        )
+        return await self.__get_token__(payload)
 
     async def __get(self, path: str) -> Any:
         """Make a GET request to the Ecole Directe API"""
