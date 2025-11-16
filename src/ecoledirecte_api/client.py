@@ -27,11 +27,12 @@ from .exceptions import (
     ServiceUnavailableException,
 )
 
-LOGGER = logging.getLogger()
+LOGGER = logging.getLogger(__name__)
 
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
-    await invocation["args"][0].login()
+    LOGGER.debug("Re-authenticating...")
+    await invocation["args"][0].freshlogin()
 
 
 class EDClient:
@@ -40,6 +41,7 @@ class EDClient:
     username: str
     password: str
     _session: ClientSession
+    _token: str
     callbacks = None
 
     def __init__(
@@ -47,6 +49,8 @@ class EDClient:
         username: str,
         password: str,
         qcm_json: dict,
+        token: str | None = None,
+        cookie_jar: Any = None,
         server_endpoint: str = APIURL,
         api_version: str = APIVERSION,
     ) -> None:
@@ -66,6 +70,8 @@ class EDClient:
         self.server_endpoint = server_endpoint
         self.api_version = api_version
         self._session: ClientSession = None
+        self._token: str = token
+        self._cookie_jar: Any = cookie_jar
 
     async def __aenter__(self) -> EDClient:
         return self
@@ -82,10 +88,14 @@ class EDClient:
         """Close the session."""
         if self._session is not None:
             await self._session.close()
+            self._session = None
 
-    def __get_new_client__(self) -> ClientSession:
+    def __get_new_client__(self) -> None:
         """Create a new aiohttp client session."""
-        return ClientSession(
+
+        LOGGER.debug("Creating new ClientSession with cookies: [%s]", self._cookie_jar)
+
+        self._session = ClientSession(
             headers={
                 "accept": "application/json, text/plain, */*",
                 "accept-encoding": "gzip, deflate, br, zstd",
@@ -104,9 +114,13 @@ class EDClient:
                 "sec-fetch-site": "same-site",
                 "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
             },
+            cookie_jar=self._cookie_jar,
             # MODIFIÉ: Passe de True à False pour éviter la lecture bloquante du fichier .netrc
             trust_env=False,
         )
+
+        if self._token is not None:
+            self._session.headers.update({"x-token": self._token})
 
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
@@ -145,12 +159,13 @@ class EDClient:
         LOGGER.debug(f"headers response: {response.headers}")
         LOGGER.debug(f"json response: {json}")
 
-        self.token = response.headers["x-token"]
-        self._session.headers.update({"x-token": self.token})
+        self._token = response.headers["x-token"]
+        self._session.headers.update({"x-token": self._token})
 
         if "x-gtk" in self._session.headers:
             self._session.headers.pop("x-gtk")
 
+        self._cookie_jar = self._session.cookie_jar
         return json
 
     async def __get_qcm_connexion__(self) -> dict:
@@ -172,8 +187,8 @@ class EDClient:
             raise QCMException(json_resp)
 
         if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
+            self._token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self._token})
             return json_resp["data"]
 
         raise QCMException(json_resp)
@@ -189,8 +204,8 @@ class EDClient:
         json_resp = await response.json(content_type=None)
 
         if "data" in json_resp:
-            self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
+            self._token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self._token})
             return json_resp["data"]
         raise QCMException(json_resp)
 
@@ -201,13 +216,23 @@ class EDClient:
         else:
             self.callbacks["new_question"].append(callback)
 
+    async def freshlogin(self) -> None:
+        LOGGER.debug("freshlogin...")
+        await self.close()
+        self._cookie_jar = None
+        self._token = None
+        await self.login()
+
     async def login(
         self,
     ) -> Any:
         """Authenticate and create an API session allowing access to the other operations."""
         if self._session is not None:
             await self._session.close()
-        self._session = self.__get_new_client__()
+        self.__get_new_client__()
+
+        if self._cookie_jar is not None:
+            return
 
         await self.__get_gtk__()
         payload = (
@@ -221,7 +246,7 @@ class EDClient:
 
         # Si connexion initiale
         if first_token["code"] == ED_MFA_REQUIRED:
-            try_login = 5
+            try_login = 2
 
             while try_login > 0:
                 # Obtenir le qcm de vérification et les propositions de réponse
@@ -280,10 +305,14 @@ class EDClient:
                 + cv
                 + '"}]}'
             )
+            self._cookie_jar = self._session.cookie_jar
             return await self.__get_token__(payload)
 
     async def __get(self, path: str) -> Any:
         """Make a GET request to the Ecole Directe API"""
+        if self._session is None:
+            await self.login()
+
         response = await self._session.get(
             f"{self.server_endpoint}{path}",
         )
@@ -294,6 +323,8 @@ class EDClient:
         self, path: str, params: dict | None = None, payload: Any | None = None
     ) -> Any:
         """Make a POST request to the Ecole Directe API"""
+        if self._session is None:
+            await self.login()
 
         response = await self._session.post(
             url=f"{self.server_endpoint}{path}",
