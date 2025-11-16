@@ -450,6 +450,12 @@ class EDClient:
         self, family_id: str | None, eleve_id: str | None, annee_scolaire: str
     ) -> dict:
         """Get messages from Ecole Directe."""
+        LOGGER.debug(
+            "get_messages: family_id=%s, eleve_id=%s, annee_scolaire=%s",
+            family_id,
+            eleve_id,
+            annee_scolaire,
+        )
         payload = 'data={"anneeMessages":"' + annee_scolaire + '"}'
         if eleve_id is None:
             path = f"/familles/{family_id}/messages.awp"
@@ -483,6 +489,11 @@ class EDClient:
     )
     async def get_homeworks_by_date(self, eleve_id: str, date: str) -> dict:
         """Get homeworks by date."""
+        LOGGER.debug(
+            "get_homeworks_by_date: eleve_id=%s, date=%s",
+            eleve_id,
+            date,
+        )
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -497,6 +508,7 @@ class EDClient:
     )
     async def get_homeworks(self, eleve_id: str) -> dict:
         """Get homeworks."""
+        LOGGER.debug("get_homeworks: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -513,6 +525,12 @@ class EDClient:
         self, eleve_id: str, devoir_id: int, effectue: bool
     ) -> dict:
         """Post homework."""
+        LOGGER.debug(
+            "post_homework: eleve_id=%s, devoir_id=%s, effectue=%s",
+            eleve_id,
+            devoir_id,
+            effectue,
+        )
         if effectue:
             payload = (
                 'data={"idDevoirsEffectues": ['
@@ -543,6 +561,11 @@ class EDClient:
         annee_scolaire: str,
     ) -> dict:
         """Get grades."""
+        LOGGER.debug(
+            "get_grades_evaluations: eleve_id=%s, annee_scolaire=%s",
+            eleve_id,
+            annee_scolaire,
+        )
         return await self.__post(
             path=f"/eleves/{eleve_id}/notes.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -557,6 +580,7 @@ class EDClient:
     )
     async def get_vie_scolaire(self, eleve_id: str) -> dict:
         """Get vie scolaire (absences, retards, etc.)."""
+        LOGGER.debug("get_vie_scolaire: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/eleves/{eleve_id}/viescolaire.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -571,6 +595,12 @@ class EDClient:
     )
     async def get_lessons(self, eleve_id: str, date_debut: str, date_fin: str) -> dict:
         """Get lessons."""
+        LOGGER.debug(
+            "get_lessons: eleve_id=%s, date_debut=%s, date_fin=%s",
+            eleve_id,
+            date_debut,
+            date_fin,
+        )
         return await self.__post(
             path=f"/E/{eleve_id}/emploidutemps.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -587,6 +617,7 @@ class EDClient:
     )
     async def get_all_wallet_balances(self) -> dict:
         """Get all wallet balances for the account."""
+        LOGGER.debug("get_all_wallet_balances")
         return await self.__post(
             path="/comptes/sansdetails.awp",
             params={"verbe": "get", "v": APIVERSION},
@@ -601,6 +632,7 @@ class EDClient:
     )
     async def get_sondages(self) -> dict:
         """Get sondages."""
+        LOGGER.debug("get_sondages")
         return await self.__post(
             path=f"/rdt/sondages.awp?v={APIVERSION}",
             params={"v": APIVERSION},
@@ -615,6 +647,9 @@ class EDClient:
     )
     async def get_formulaires(self, account_type: str, id_entity: str) -> dict:
         """Get formulaires."""
+        LOGGER.debug(
+            "get_formulaires: account_type=%s, id_entity=%s", account_type, id_entity
+        )
         payload = (
             'data={"typeEntity": "'
             + str(account_type)
@@ -636,6 +671,7 @@ class EDClient:
     )
     async def get_classe(self, classe_id: str) -> None:
         """Get classe."""
+        LOGGER.debug("get_classe: classe_id=%s", classe_id)
         json_resp = self.__post(
             path=f"/Classes/{classe_id}/viedelaclasse.awp",
             params={"verbe": "get", "v": APIVERSION},
