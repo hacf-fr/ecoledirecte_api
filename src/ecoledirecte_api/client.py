@@ -301,7 +301,7 @@ class EDClient:
                         LOGGER.info(f"callback new_question : [{question}]")
                         for callback in self.callbacks["new_question"]:
                             # wait for event to be handled
-                            await callback(self.qcm_json)
+                            callback(self.qcm_json)
 
                     try_login -= 1
 
@@ -309,25 +309,25 @@ class EDClient:
                     msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
                     raise QCMException(msg)
 
-        await self.__get_gtk__()
-
-        # Renvoyer une requête de connexion avec la double-authentification réussie
-        payload = (
-            'data={"identifiant":"'
-            + self.encodeString(self.username)
-            + '", "motdepasse":"'
-            + self.encodeString(self.password)
-            + '", "isRelogin": false, "cn":"'
-            + self.conn_state.cn
-            + '", "cv":"'
-            + self.conn_state.cv
-            + '", "uuid": "", "fa": [{"cn": "'
-            + self.conn_state.cn
-            + '", "cv": "'
-            + self.conn_state.cv
-            + '"}]}'
-        )
-        return await self.__get_token__(payload)
+        if self.conn_state.cn is not None and self.conn_state.cv is not None:
+            await self.__get_gtk__()
+            # Renvoyer une requête de connexion avec la double-authentification réussie
+            payload = (
+                'data={"identifiant":"'
+                + self.encodeString(self.username)
+                + '", "motdepasse":"'
+                + self.encodeString(self.password)
+                + '", "isRelogin": false, "cn":"'
+                + self.conn_state.cn
+                + '", "cv":"'
+                + self.conn_state.cv
+                + '", "uuid": "", "fa": [{"cn": "'
+                + self.conn_state.cn
+                + '", "cv": "'
+                + self.conn_state.cv
+                + '"}]}'
+            )
+            return await self.__get_token__(payload)
 
     async def __get(self, path: str) -> Any:
         """Make a GET request to the Ecole Directe API"""
@@ -460,13 +460,6 @@ class EDClient:
             body += ","
 
         return body[:-1]
-
-    async def get_cookies(self) -> Any:
-        """Get cookies."""
-        LOGGER.debug("get_cookies")
-        if self._session is None:
-            return None
-        return await self._session.cookie_jar
 
     @backoff.on_exception(
         backoff.expo,
