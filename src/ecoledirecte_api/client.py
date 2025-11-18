@@ -253,6 +253,9 @@ class EDClient:
         """Authenticate and create an API session allowing access to the other operations."""
         if self._session is not None:
             await self._session.close()
+        if self.conn_state.cn is None or self.conn_state.cv is None:
+            self.conn_state.reset()
+
         self.__get_new_client__()
 
         if self.conn_state.cookie_jar is None:
