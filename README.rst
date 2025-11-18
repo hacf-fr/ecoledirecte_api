@@ -45,7 +45,7 @@ Getting started
     
     logger = logging.getLogger(__name__)
     
-    def save_question(qcm_json):
+    async def save_question(qcm_json):
         """Save question to file."""
         with Path("qcm.json").open(
             "w",
