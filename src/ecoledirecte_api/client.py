@@ -301,7 +301,7 @@ class EDClient:
                         LOGGER.info(f"callback new_question : [{question}]")
                         for callback in self.callbacks["new_question"]:
                             # wait for event to be handled
-                            callback(self.qcm_json)
+                            await callback(self.qcm_json)
 
                     try_login -= 1
 
