@@ -269,6 +269,9 @@ class EDClient:
             )
             first_token = await self.__get_token__(payload)
 
+            if first_token["code"] == ED_OK:
+                return first_token
+
             # Si connexion initiale
             if first_token["code"] == ED_MFA_REQUIRED:
                 try_login = 2
