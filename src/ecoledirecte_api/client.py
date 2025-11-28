@@ -58,6 +58,7 @@ class EDConnectionState:
         self.cn = None
         self.cv = None
         self.cookie_jar = None
+        LOGGER.debug("EDConnectionState reset done.")
 
 
 class EDClient:
@@ -95,6 +96,7 @@ class EDClient:
         self.server_endpoint = server_endpoint
         self.api_version = api_version
         self._session: ClientSession = None
+        LOGGER.debug("EDClient initialized.")
 
     async def __aenter__(self) -> EDClient:
         return self
@@ -112,6 +114,7 @@ class EDClient:
         if self._session is not None:
             await self._session.close()
             self._session = None
+        LOGGER.debug("_session closed (or none).")
 
     def __get_new_client__(self) -> None:
         """Create a new aiohttp client session."""
@@ -149,6 +152,7 @@ class EDClient:
 
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
+        LOGGER.debug("getting gtk for cookies...")
         # first call to get a cookie
         if "x-gtk" in self._session.headers:
             self._session.headers.pop("x-gtk")
@@ -166,7 +170,7 @@ class EDClient:
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         LOGGER.debug(
-            f"headers request: [{self._session.headers}] - payload: [{payload}]"
+            f"get_token headers request: [{self._session.headers}] - payload: [{payload}]"
         )
         response = await self._session.post(
             f"{self.server_endpoint}/login.awp",
@@ -181,8 +185,8 @@ class EDClient:
             bypassMFA=True,
         )
         json = await response.json(content_type=None)
-        LOGGER.debug(f"headers response: {response.headers}")
-        LOGGER.debug(f"json response: {json}")
+        LOGGER.debug(f"get_token headers response: {response.headers}")
+        LOGGER.debug(f"get_token json response: {json}")
 
         self.conn_state.token = response.headers["x-token"]
         self._session.headers.update({"x-token": self.conn_state.token})
@@ -220,6 +224,7 @@ class EDClient:
 
     async def __post_qcm_connexion__(self, proposition: str) -> dict:
         """Renvoyer la réponse du QCM donné."""
+        LOGGER.debug(f"__post_qcm_connexion__ proposition=[{proposition}]")
         response = await self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
@@ -251,14 +256,18 @@ class EDClient:
         self,
     ) -> Any:
         """Authenticate and create an API session allowing access to the other operations."""
+        LOGGER.debug("Enter login...")
+
         if self._session is not None:
             await self._session.close()
         if self.conn_state.cn is None or self.conn_state.cv is None:
             self.conn_state.reset()
 
+        LOGGER.debug("getting new client...")
         self.__get_new_client__()
 
         if self.conn_state.cookie_jar is None:
+            LOGGER.debug("cookie_jar is None, get gtk...")
             await self.__get_gtk__()
             payload = (
                 'data={"identifiant":"'
@@ -270,10 +279,12 @@ class EDClient:
             first_token = await self.__get_token__(payload)
 
             if first_token["code"] == ED_OK:
+                LOGGER.debug("first_token[code] == ED_OK !!!!!!!!")
                 return first_token
 
             # Si connexion initiale
             if first_token["code"] == ED_MFA_REQUIRED:
+                LOGGER.debug("first_token[code] == ED_MFA_REQUIRED, Trying MFA...")
                 try_login = 2
 
                 while try_login > 0:
@@ -334,6 +345,7 @@ class EDClient:
                 + '"}]}'
             )
             return await self.__get_token__(payload)
+        LOGGER.debug("Login failed...")
 
     async def __get(self, path: str) -> Any:
         """Make a GET request to the Ecole Directe API"""
