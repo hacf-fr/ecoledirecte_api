@@ -1,0 +1,3 @@
+pip==26.0.1
+poetry==2.3.2
+virtualenv==21.1.0
