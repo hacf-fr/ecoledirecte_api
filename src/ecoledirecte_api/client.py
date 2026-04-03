@@ -724,3 +724,40 @@ class EDClient:
             payload="data={}",
         )
         LOGGER.debug("get_classeV2: [%s]", json_resp)
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def switch_account(self, target_id_login: int) -> dict:
+        """Switch the API session context to a different account.
+
+        When a parent account is linked to multiple establishments,
+        the API token is scoped to the main account after login.
+        This method calls renewtoken.awp to switch the session context
+        to a different account (identified by its idLogin), allowing
+        subsequent API calls to fetch data for children belonging
+        to that account.
+
+        :param target_id_login: the idLogin of the target account
+        :return: the JSON response from the API
+        """
+        LOGGER.debug("switch_account: target_id_login=%s", target_id_login)
+        if self._session is None:
+            await self.login()
+
+        response = await self._session.post(
+            url=f"{self.server_endpoint}/renewtoken.awp",
+            params={"verbe": "post", "v": self.api_version},
+            data=f'data={{"idUser": {target_id_login}, "uuid": ""}}',
+            timeout=120,
+        )
+        json_resp = await response.json(content_type=None)
+
+        if "x-token" in response.headers:
+            self.conn_state.token = response.headers["x-token"]
+            self._session.headers.update({"x-token": self.conn_state.token})
+
+        return json_resp
