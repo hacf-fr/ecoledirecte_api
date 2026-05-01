@@ -15,6 +15,7 @@ from aiohttp import (
     ClientSession,
     ServerDisconnectedError,
 )
+import urllib
 
 from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_NODATA, ED_OK
 from .exceptions import (
@@ -430,14 +431,7 @@ class EDClient:
         )
 
     def encodeString(self, string):
-        return (
-            string.replace("%", "%25")
-            .replace("&", "%26")
-            .replace("+", "%2B")
-            .replace("+", "%2B")
-            .replace("\\", "\\\\\\")
-            .replace("\\\\", "\\\\\\\\")
-        )
+        return urllib.parse.quote(string, safe="~()*!.'%\\").replace("\\", "\\\\")
 
     def encodeBody(self, dictionnary, isRecursive=False):
         body = ""
