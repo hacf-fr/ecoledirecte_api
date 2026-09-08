@@ -745,21 +745,17 @@ class EDClient:
         self,
         user_id: str | int,
         account_type: str | int = 1,
-        *,
-        eleve_id: str | int | None = None,
     ) -> dict:
         """Get workspaces (Mes espaces de travail).
 
         :param user_id: the user / eleve ID
         :param account_type: the account type (default: 1)
-        :param eleve_id: optional alias for user_id
         :return: the JSON response from the API containing the list of workspaces
         """
-        if eleve_id is not None:
-            user_id = eleve_id
-
-        if str(user_id) in ("1", "E", "P") and str(account_type) not in ("1", "E", "P"):
-            account_type, user_id = user_id, account_type
+        if str(account_type) not in ("1", "E", "P"):
+            raise ValueError(
+                f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
+            )
 
         LOGGER.debug(
             "get_all_espaces_travail: account_type=%s, user_id=%s",
@@ -786,7 +782,17 @@ class EDClient:
                                  user_id: str | int,
                                  account_type: str | int = 1,
                                  ) -> dict:
-        """Get workspace by id."""
+        """Get workspace (Mes espaces de travail).
+
+        :param espace_id: the workspace ID
+        :param user_id: the user / eleve ID
+        :param account_type: the account type (default: 1)
+        :return: the JSON response from the API containing the workspace
+        """
+        if str(account_type) not in ("1", "E", "P"):
+            raise ValueError(
+                f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
+            )
         LOGGER.debug(
             "get_espaces_travail: espace_id=%s",
             espace_id,
@@ -801,7 +807,11 @@ class EDClient:
         )
 
     async def get_postits(self, espace_id: str | int) -> dict:
-        """Get post-it."""
+        """Get post-its.
+
+        :param espace_id: the workspace ID
+        :return: the JSON response from the API containing the post-its
+        """
         LOGGER.debug(
             "get_postits: espace_id=%s",
             espace_id,
