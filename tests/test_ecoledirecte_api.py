@@ -1,24 +1,57 @@
-#!/usr/bin/env python
-
-"""Tests for `ecoledirecte_api` package."""
-
 import pytest
+from unittest.mock import AsyncMock, patch
+
+from ecoledirecte_api.client import EDClient
+from ecoledirecte_api.const import APIVERSION
 
 
-from ecoledirecte_api import ecoledirecte_api
+@pytest.mark.asyncio
+async def test_get_espaces_travail_default():
+    client = EDClient("username", "password", {})
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = {"code": 200, "data": []}
+        result = await client.get_all_espaces_travail()
+        assert result == {"code": 200, "data": []}
+        mock_post.assert_awaited_once_with(
+            path="/1/3745/espacestravail.awp",
+            params={
+                "verbe": "get",
+                "typeModule": "espaceTravail",
+                "v": APIVERSION,
+            },
+            payload="data={}",
+        )
 
 
-@pytest.fixture
-def response():
-    """Sample pytest fixture.
+@pytest.mark.asyncio
+async def test_get_espaces_travail_custom():
+    client = EDClient("username", "password", {})
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = {"code": 200, "data": []}
+        await client.get_all_espaces_travail(eleve_id="1234")
+        mock_post.assert_awaited_once_with(
+            path="/1/1234/espacestravail.awp",
+            params={
+                "verbe": "get",
+                "typeModule": "espaceTravail",
+                "v": APIVERSION,
+            },
+            payload="data={}",
+        )
 
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
 
-
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    # from bs4 import BeautifulSoup
-    # assert 'GitHub' in BeautifulSoup(response.content).title.string
+@pytest.mark.asyncio
+async def test_get_espaces_travail_positional_swap():
+    client = EDClient("username", "password", {})
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = {"code": 200, "data": []}
+        await client.get_all_espaces_travail(1, 3745)
+        mock_post.assert_awaited_once_with(
+            path="/1/3745/espacestravail.awp",
+            params={
+                "verbe": "get",
+                "typeModule": "espaceTravail",
+                "v": APIVERSION,
+            },
+            payload="data={}",
+        )

@@ -251,7 +251,7 @@ class EDClient:
                 + self.encodeString(self.username)
                 + '", "motdepasse":"'
                 + self.encodeString(self.password)
-                + '", "isRelogin": false}'
+                + '", "isReLogin": false}'
             )
             first_token = await self.__get_token__(payload)
 
@@ -314,7 +314,7 @@ class EDClient:
                 + self.encodeString(self.username)
                 + '", "motdepasse":"'
                 + self.encodeString(self.password)
-                + '", "isRelogin": false, "cn":"'
+                + '", "isReLogin": false, "cn":"'
                 + self.cn
                 + '", "cv":"'
                 + self.cv
@@ -734,3 +734,83 @@ class EDClient:
             self._session.headers.update({"x-token": self.token})
 
         return json_resp
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_all_espaces_travail(
+        self,
+        user_id: str | int,
+        account_type: str | int = 1,
+        *,
+        eleve_id: str | int | None = None,
+    ) -> dict:
+        """Get workspaces (Mes espaces de travail).
+
+        :param user_id: the user / eleve ID
+        :param account_type: the account type (default: 1)
+        :param eleve_id: optional alias for user_id
+        :return: the JSON response from the API containing the list of workspaces
+        """
+        if eleve_id is not None:
+            user_id = eleve_id
+
+        if str(user_id) in ("1", "E", "P") and str(account_type) not in ("1", "E", "P"):
+            account_type, user_id = user_id, account_type
+
+        LOGGER.debug(
+            "get_all_espaces_travail: account_type=%s, user_id=%s",
+            account_type,
+            user_id,
+        )
+        return await self.__post(
+            path=f"/{account_type}/{user_id}/espacestravail.awp",
+            params={
+                "verbe": "get",
+                "typeModule": "espaceTravail",
+                "v": self.api_version,
+            },
+            payload="data={}",
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_espace_travail(self, espace_id: str | int,
+                                 user_id: str | int,
+                                 account_type: str | int = 1,
+                                 ) -> dict:
+        """Get workspace by id."""
+        LOGGER.debug(
+            "get_espaces_travail: espace_id=%s",
+            espace_id,
+        )
+        return await self.__post(
+            path=f"/{account_type}/{user_id}/espacestravail/{espace_id}.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+            },
+            payload="data={}",
+        )
+
+    async def get_postits(self, espace_id: str | int) -> dict:
+        """Get post-it."""
+        LOGGER.debug(
+            "get_postits: espace_id=%s",
+            espace_id,
+        )
+        return await self.__post(
+            path=f"/W/{espace_id}/postits.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+            },
+            payload="data={}",
+        )
