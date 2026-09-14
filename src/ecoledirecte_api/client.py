@@ -146,7 +146,7 @@ class EDClient:
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         LOGGER.debug(
-            f"get_token headers request: [{self._session.headers}] - payload: [{payload}]"
+            f"get_token - payload: [{payload}]"
         )
         response = await self._session.post(
             f"{self.server_endpoint}/login.awp",
@@ -161,14 +161,17 @@ class EDClient:
             bypassMFA=True,
         )
         json = await response.json(content_type=None)
-        LOGGER.debug(f"get_token headers response: {response.headers}")
         LOGGER.debug(f"get_token json response: {json}")
 
         self.token = response.headers["x-token"]
         self._session.headers.update({"x-token": self.token})
 
-        self.token_2fa = response.headers["2FA-Token"]
-        self._session.headers.update({"2FA-Token": self.token_2fa})
+        if "2FA-Token" in response.headers:
+            self.token_2fa = response.headers["2FA-Token"]
+            self._session.headers.update({"2FA-Token": self.token_2fa})
+        else:
+            LOGGER.debug(
+                "get_token: no 2FA-Token header in response, skipping.")
 
         if "x-gtk" in self._session.headers:
             self._session.headers.pop("x-gtk")
@@ -324,6 +327,7 @@ class EDClient:
                 + self.cv
                 + '"}]}'
             )
+            LOGGER.debug("before __get_token__")
             return await self.__get_token__(payload)
         LOGGER.debug("Login failed...")
 
