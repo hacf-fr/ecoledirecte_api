@@ -146,7 +146,7 @@ class EDClient:
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         LOGGER.debug(
-            f"get_token headers request: [{self._session.headers}] - payload: [{payload}]"
+            f"get_token - payload: [{payload}]"
         )
         response = await self._session.post(
             f"{self.server_endpoint}/login.awp",
@@ -161,7 +161,6 @@ class EDClient:
             bypassMFA=True,
         )
         json = await response.json(content_type=None)
-        LOGGER.debug(f"get_token headers response: {response.headers}")
         LOGGER.debug(f"get_token json response: {json}")
 
         self.token = response.headers["x-token"]
