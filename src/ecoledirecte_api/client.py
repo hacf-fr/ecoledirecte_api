@@ -784,13 +784,13 @@ class EDClient:
     )
     async def get_espace_travail(self, espace_id: str | int,
                                  user_id: str | int,
-                                 account_type: str | int = 1,
+                                 account_type: str
                                  ) -> dict:
         """Get workspace (Mes espaces de travail).
 
         :param espace_id: the workspace ID
         :param user_id: the user / eleve ID
-        :param account_type: the account type (default: 1)
+        :param account_type: the account type
         :return: the JSON response from the API containing the workspace
         """
         if str(account_type) not in ("1", "E", "P"):
@@ -803,6 +803,76 @@ class EDClient:
         )
         return await self.__post(
             path=f"/{account_type}/{user_id}/espacestravail/{espace_id}.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+            },
+            payload="data={}",
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_activites_espace_travail(self, espace_id: str | int,
+                                           user_id: str | int,
+                                           account_type: str,
+                                           ) -> dict:
+        """Get activites for a workspace (Mes espaces de travail).
+
+        :param espace_id: the workspace ID
+        :param user_id: the user / eleve ID
+        :param account_type: the account type
+        :return: the JSON response from the API containing the workspace activities
+        """
+        if str(account_type) not in ("1", "E", "P"):
+            raise ValueError(
+                f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
+            )
+        LOGGER.debug(
+            "get_activites_espace_travail: espace_id=%s",
+            espace_id,
+        )
+        return await self.__post(
+            path=f"/{account_type}/{user_id}/espacestravail/{espace_id}/activites.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+            },
+            payload="data={}",
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_details_cloudactivites_espace_travail(self, espace_id: str | int,
+                                                        user_id: str | int,
+                                                        account_type: str,
+                                                        activityId: str,
+                                                        ) -> dict:
+        """Get details for a specific cloud activity in a workspace (Mes espaces de travail).
+
+        :param espace_id: the workspace ID
+        :param user_id: the user / eleve ID
+        :param account_type: the account type
+        :param activityId: the activity ID
+        :return: the JSON response from the API containing the details of the specific cloud activity
+        """
+        if str(account_type) not in ("1", "E", "P"):
+            raise ValueError(
+                f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
+            )
+        LOGGER.debug(
+            "get_details_cloudactivites_espace_travail: espace_id=%s",
+            espace_id,
+        )
+        return await self.__post(
+            path=f"/{account_type}/{user_id}/espacestravail/{espace_id}/{activityId}/cloudactivites.awp",
             params={
                 "verbe": "get",
                 "v": self.api_version,
