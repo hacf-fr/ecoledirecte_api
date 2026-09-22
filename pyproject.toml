@@ -1,6 +1,6 @@
 [project]
 name = "ecoledirecte"
-version = "0.3.1"
+version = "0.3.2"
 description = "Async Python client to interact with Ecole Directe API."
 license = "LGPL-3.0-or-later"
 readme = "README.rst"
@@ -9,13 +9,11 @@ repository = "https://github.com/hacf-fr/ecoledirecte_api"
 authors = [{"name" = "Giga77"}]
 maintainers = [{"name" = "Giga77"}]
 classifiers = [
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Natural Language :: French",
     "Topic :: Internet :: WWW/HTTP",
 ]
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.14,<4.0"
 dependencies = [
     "aiohttp>=3.14.3",
     "backoff>=1.10.0,<3.0",
@@ -32,17 +30,9 @@ homepage = "https://github.com/hacf-fr/ecoledirecte_api"
 repository = "https://github.com/hacf-fr/ecoledirecte_api"
 "Bug Tracker" = "https://github.com/hacf-fr/ecoledirecte_api/issues"
 
-[tool.poetry.requires-plugins]
-poetry-plugin-export = ">=1.8"
-
 [tool.poetry.group.dev.dependencies]
-safety = "==3.7.0"
 mypy = "1.19.1"
-typeguard = "==4.5.1"
 ruff = "==0.15.8"
-
-[tool.coverage.paths]
-source = ["src", "*/site-packages"]
 
 # Mypy
 # ----
