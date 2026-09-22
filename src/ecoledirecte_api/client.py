@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import base64
 import logging
+import urllib
 from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
+
 import backoff
 from aiohttp import (
     ClientConnectorError,
     ClientResponse,
     ClientSession,
     ServerDisconnectedError,
+    StreamReader,
 )
-import urllib
 
 from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_NODATA, ED_OK
 from .exceptions import (
@@ -74,7 +76,7 @@ class EDClient:
         self._session: ClientSession = None
         LOGGER.debug("EDClient initialized.")
 
-    async def __aenter__(self) -> EDClient:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
@@ -880,6 +882,12 @@ class EDClient:
             payload="data={}",
         )
 
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
     async def get_postits(self, espace_id: str | int) -> dict:
         """Get post-its.
 
@@ -898,3 +906,62 @@ class EDClient:
             },
             payload="data={}",
         )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def get_menus(self, eleve_id: str | int) -> dict:
+        """Get menus.
+
+        :param eleve_id: the student ID
+        :return: the JSON response from the API containing the menus
+        """
+        LOGGER.debug(
+            "get_menus: eleve_id=%s",
+            eleve_id,
+        )
+        return await self.__post(
+            path="/menusRestaurationScolaire.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+            },
+            payload="data={\"idEleve\": " + str(eleve_id) + "}",
+        )
+
+    @backoff.on_exception(
+        backoff.expo,
+        (LoginException, ServerDisconnectedError, ClientConnectorError),
+        max_tries=2,
+        on_backoff=relogin,
+    )
+    async def download_file(self, file_id: str | int, file_type: str) -> StreamReader:
+        """Download a file.
+
+        :param file_id: the file ID
+        :param file_type: the type of the file
+        :return: encoded file
+        """
+        LOGGER.debug(
+            "download_file: file_id=%s file_type=%s",
+            file_id,
+            file_type
+        )
+        if self._session is None:
+            await self.login()
+
+        response = await self._session.post(
+            url=f"{self.server_endpoint}/telechargement.awp",
+            params={
+                "verbe": "get",
+                "v": self.api_version,
+                "fichierId": file_id,
+                "leTypeDeFichier": file_type
+            },
+            data="data={ \"forceDownload\": 0, \"idEtab\": 0}",
+        )
+
+        return response.content
