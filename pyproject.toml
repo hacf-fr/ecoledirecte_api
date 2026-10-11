@@ -1,15 +1,14 @@
 [project]
 name = "ecoledirecte"
-version = "0.3.4"
+version = "0.4.0"
 description = "Async Python client to interact with Ecole Directe API."
 license = "LGPL-3.0-or-later"
 readme = "README.rst"
-homepage = "https://github.com/hacf-fr/ecoledirecte_api"
-repository = "https://github.com/hacf-fr/ecoledirecte_api"
-authors = [{"name" = "Giga77"}]
-maintainers = [{"name" = "Giga77"}]
+authors = [{ name = "Giga77" }]
+maintainers = [{ name = "Giga77" }]
 classifiers = [
     "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     "Natural Language :: French",
     "Topic :: Internet :: WWW/HTTP",
 ]
@@ -19,34 +18,30 @@ dependencies = [
     "backoff>=1.10.0,<3.0",
 ]
 
-[tool.poetry]
-packages = [
-   { include = "ecoledirecte_api", from = "src" }
-]
-
 [project.urls]
+Homepage = "https://github.com/hacf-fr/ecoledirecte_api"
+Repository = "https://github.com/hacf-fr/ecoledirecte_api"
 Changelog = "https://github.com/hacf-fr/ecoledirecte_api/releases"
-homepage = "https://github.com/hacf-fr/ecoledirecte_api"
-repository = "https://github.com/hacf-fr/ecoledirecte_api"
 "Bug Tracker" = "https://github.com/hacf-fr/ecoledirecte_api/issues"
 
-[tool.poetry.group.dev.dependencies]
-mypy = "1.19.1"
-ruff = "==0.15.8"
+[tool.poetry]
+packages = [
+    { include = "ecoledirecte_api", from = "src" }
+]
 
-# Mypy
-# ----
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.19.1"
+ruff = "^0.15.8"
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
 
 [tool.mypy]
-files = "."
-
-# Use strict defaults
+files = ["src", "tests"]
 strict = true
 warn_unreachable = true
 warn_no_return = true
 
 [[tool.mypy.overrides]]
-# Don't require test functions to include types
 module = "tests.*"
 allow_untyped_defs = true
 disable_error_code = "attr-defined"
