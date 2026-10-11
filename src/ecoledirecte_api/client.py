@@ -663,13 +663,20 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_formulaires(self, account_type: str, id_entity: str) -> dict:
+    async def get_formulaires(
+        self, annee_forms: str, account_type: str, id_entity: str
+    ) -> dict:
         """Get formulaires."""
         LOGGER.debug(
-            "get_formulaires: account_type=%s, id_entity=%s", account_type, id_entity
+            "get_formulaires: annee_forms=%s, account_type=%s, id_entity=%s",
+            annee_forms,
+            account_type,
+            id_entity,
         )
         payload = (
-            'data={"typeEntity": "'
+            'data={"anneeForms": "'
+            + str(annee_forms)
+            + '","typeEntity": "'
             + str(account_type)
             + '","idEntity":'
             + str(id_entity)
