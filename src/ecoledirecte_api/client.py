@@ -231,6 +231,12 @@ class EDClient:
         else:
             self.callbacks["new_question"].append(callback)
 
+    async def freshlogin(self) -> Any:
+        """Re-authenticate without reusing the current token or cookies."""
+        self.token = None
+        self.cookie_jar = None
+        return await self.login()
+
     async def login(
         self,
     ) -> Any:
