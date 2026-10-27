@@ -158,3 +158,5 @@ dmypy.json
 
 # File-based project format
 *.iws
+mytest.py
+qcm.json
