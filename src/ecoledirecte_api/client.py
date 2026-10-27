@@ -504,7 +504,7 @@ class EDClient:
                 "itemsPerPage": "100",
                 "getAll": "0",
                 "verbe": "get",
-                "v": APIVERSION,
+                "v": self.api_version,
             },
             payload=payload,
         )
@@ -524,7 +524,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
 
@@ -539,7 +539,7 @@ class EDClient:
         LOGGER.debug("get_homeworks: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
 
@@ -573,7 +573,7 @@ class EDClient:
             )
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
-            params={"verbe": "put", "v": APIVERSION},
+            params={"verbe": "put", "v": self.api_version},
             payload=payload,
         )
 
@@ -596,7 +596,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/eleves/{eleve_id}/notes.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=f"data={{'anneeScolaire': '{annee_scolaire}'}}",
         )
 
@@ -611,7 +611,7 @@ class EDClient:
         LOGGER.debug("get_vie_scolaire: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/eleves/{eleve_id}/viescolaire.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
 
@@ -631,7 +631,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/E/{eleve_id}/emploidutemps.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=f"data={{'dateDebut': '{date_debut}','dateFin': '{
                 date_fin
             }','avecTrous': false}}",
@@ -648,7 +648,7 @@ class EDClient:
         LOGGER.debug("get_all_wallet_balances")
         return await self.__post(
             path="/comptes/sansdetails.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
 
@@ -662,8 +662,8 @@ class EDClient:
         """Get sondages."""
         LOGGER.debug("get_sondages")
         return await self.__post(
-            path=f"/rdt/sondages.awp?v={APIVERSION}",
-            params={"v": APIVERSION},
+            path=f"/rdt/sondages.awp?v={self.api_version}",
+            params={"v": self.api_version},
             payload="data={}",
         )
 
@@ -694,7 +694,7 @@ class EDClient:
         )
         return await self.__post(
             path="/edforms.awp",
-            params={"verbe": "list", "v": APIVERSION},
+            params={"verbe": "list", "v": self.api_version},
             payload=payload,
         )
 
@@ -709,14 +709,14 @@ class EDClient:
         LOGGER.debug("get_classe: classe_id=%s", classe_id)
         json_resp = self.__post(
             path=f"/Classes/{classe_id}/viedelaclasse.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
         LOGGER.debug("get_classeV1: [%s]", json_resp)
 
         json_resp = self.__post(
             path=f"/R/{classe_id}/viedelaclasse.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
         LOGGER.debug("get_classeV2: [%s]", json_resp)
