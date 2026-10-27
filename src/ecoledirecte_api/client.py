@@ -6,7 +6,7 @@ import base64
 import logging
 import urllib
 from collections.abc import Mapping
-from json import JSONDecodeError
+from json import JSONDecodeError, dumps
 from types import TracebackType
 from typing import Any, Self
 
@@ -186,7 +186,7 @@ class EDClient:
         response = await self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "get", "v": self.api_version},
-            data="data={}",
+            data=self._json_payload({}),
             timeout=120,
         )
         try:
@@ -213,7 +213,7 @@ class EDClient:
         response = await self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
-            data=f'data={{"choix": "{proposition}"}}',
+            data=self._json_payload({"choix": proposition}),
             timeout=120,
         )
         json_resp = await response.json(content_type=None)
@@ -257,12 +257,12 @@ class EDClient:
         if self.cookie_jar is None:
             LOGGER.debug("cookie_jar is None, get gtk...")
             await self.__get_gtk__()
-            payload = (
-                'data={"identifiant":"'
-                + self.encodeString(self.username)
-                + '", "motdepasse":"'
-                + self.encodeString(self.password)
-                + '", "isReLogin": false}'
+            payload = self._json_payload(
+                {
+                    "identifiant": self.encodeString(self.username),
+                    "motdepasse": self.encodeString(self.password),
+                    "isReLogin": False,
+                }
             )
             first_token = await self.__get_token__(payload)
 
@@ -320,20 +320,16 @@ class EDClient:
         if self.cn is not None and self.cv is not None:
             await self.__get_gtk__()
             # Renvoyer une requête de connexion avec la double-authentification réussie
-            payload = (
-                'data={"identifiant":"'
-                + self.encodeString(self.username)
-                + '", "motdepasse":"'
-                + self.encodeString(self.password)
-                + '", "isReLogin": false, "cn":"'
-                + self.cn
-                + '", "cv":"'
-                + self.cv
-                + '", "uuid": "", "fa": [{"cn": "'
-                + self.cn
-                + '", "cv": "'
-                + self.cv
-                + '"}]}'
+            payload = self._json_payload(
+                {
+                    "identifiant": self.encodeString(self.username),
+                    "motdepasse": self.encodeString(self.password),
+                    "isReLogin": False,
+                    "cn": self.cn,
+                    "cv": self.cv,
+                    "uuid": "",
+                    "fa": [{"cn": self.cn, "cv": self.cv}],
+                }
             )
             LOGGER.debug("before __get_token__")
             return await self.__get_token__(payload)
@@ -464,6 +460,11 @@ class EDClient:
 
         return body[:-1]
 
+    @staticmethod
+    def _json_payload(data: Any) -> str:
+        """Serialize an Ecole Directe form body containing a JSON data value."""
+        return f"data={dumps(data, separators=(',', ':'))}"
+
     @backoff.on_exception(
         backoff.expo,
         (NotAuthenticatedException, ServerDisconnectedError, ClientConnectorError),
@@ -480,7 +481,7 @@ class EDClient:
             eleve_id,
             annee_scolaire,
         )
-        payload = 'data={"anneeMessages":"' + annee_scolaire + '"}'
+        payload = self._json_payload({"anneeMessages": annee_scolaire})
         if eleve_id is None:
             path = f"/familles/{family_id}/messages.awp"
         else:
@@ -521,7 +522,7 @@ class EDClient:
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -536,7 +537,7 @@ class EDClient:
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -556,21 +557,19 @@ class EDClient:
             effectue,
         )
         if effectue:
-            payload = (
-                'data={"idDevoirsEffectues": ['
-                + str(devoir_id)
-                + '],"idDevoirsNonEffectues": []}'
-            )
+            data = {
+                "idDevoirsEffectues": [devoir_id],
+                "idDevoirsNonEffectues": [],
+            }
         else:
-            payload = (
-                'data={"idDevoirsEffectues": [],"idDevoirsNonEffectues": ['
-                + str(devoir_id)
-                + "]}"
-            )
+            data = {
+                "idDevoirsEffectues": [],
+                "idDevoirsNonEffectues": [devoir_id],
+            }
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
             params={"verbe": "put", "v": APIVERSION},
-            payload=payload,
+            payload=self._json_payload(data),
         )
 
     @backoff.on_exception(
@@ -593,7 +592,7 @@ class EDClient:
         return await self.__post(
             path=f"/eleves/{eleve_id}/notes.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload=f"data={{'anneeScolaire': '{annee_scolaire}'}}",
+            payload=self._json_payload({"anneeScolaire": annee_scolaire}),
         )
 
     @backoff.on_exception(
@@ -608,7 +607,7 @@ class EDClient:
         return await self.__post(
             path=f"/eleves/{eleve_id}/viescolaire.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -628,9 +627,13 @@ class EDClient:
         return await self.__post(
             path=f"/E/{eleve_id}/emploidutemps.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload=f"data={{'dateDebut': '{date_debut}','dateFin': '{
-                date_fin
-            }','avecTrous': false}}",
+            payload=self._json_payload(
+                {
+                    "dateDebut": date_debut,
+                    "dateFin": date_fin,
+                    "avecTrous": False,
+                }
+            ),
         )
 
     @backoff.on_exception(
@@ -645,7 +648,7 @@ class EDClient:
         return await self.__post(
             path="/comptes/sansdetails.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -660,7 +663,7 @@ class EDClient:
         return await self.__post(
             path=f"/rdt/sondages.awp?v={APIVERSION}",
             params={"v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -679,14 +682,12 @@ class EDClient:
             account_type,
             id_entity,
         )
-        payload = (
-            'data={"anneeForms": "'
-            + str(annee_forms)
-            + '","typeEntity": "'
-            + str(account_type)
-            + '","idEntity":'
-            + str(id_entity)
-            + "}"
+        payload = self._json_payload(
+            {
+                "anneeForms": str(annee_forms),
+                "typeEntity": str(account_type),
+                "idEntity": int(id_entity),
+            }
         )
         return await self.__post(
             path="/edforms.awp",
@@ -706,14 +707,14 @@ class EDClient:
         json_resp = self.__post(
             path=f"/Classes/{classe_id}/viedelaclasse.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
         LOGGER.debug("get_classeV1: [%s]", json_resp)
 
         json_resp = self.__post(
             path=f"/R/{classe_id}/viedelaclasse.awp",
             params={"verbe": "get", "v": APIVERSION},
-            payload="data={}",
+            payload=self._json_payload({}),
         )
         LOGGER.debug("get_classeV2: [%s]", json_resp)
 
@@ -743,7 +744,7 @@ class EDClient:
         response = await self._session.post(
             url=f"{self.server_endpoint}/renewtoken.awp",
             params={"verbe": "post", "v": self.api_version},
-            data=f'data={{"idUser": {target_id_login}, "uuid": ""}}',
+            data=self._json_payload({"idUser": target_id_login, "uuid": ""}),
             timeout=120,
         )
         json_resp = await response.json(content_type=None)
@@ -788,7 +789,7 @@ class EDClient:
                 "typeModule": "espaceTravail",
                 "v": self.api_version,
             },
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -822,7 +823,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -856,7 +857,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -892,7 +893,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -917,7 +918,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload="data={}",
+            payload=self._json_payload({}),
         )
 
     @backoff.on_exception(
@@ -942,7 +943,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload="data={\"idEleve\": " + str(eleve_id) + "}",
+            payload=self._json_payload({"idEleve": int(eleve_id)}),
         )
 
     @backoff.on_exception(
@@ -974,7 +975,7 @@ class EDClient:
                 "fichierId": file_id,
                 "leTypeDeFichier": file_type
             },
-            data="data={ \"forceDownload\": 0, \"idEtab\": 0}",
+            data=self._json_payload({"forceDownload": 0, "idEtab": 0}),
         )
 
         return response.content

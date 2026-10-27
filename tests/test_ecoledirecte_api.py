@@ -1,8 +1,21 @@
+import json
+
 import pytest
 from unittest.mock import AsyncMock, patch
 
 from ecoledirecte_api.client import EDClient, relogin
 from ecoledirecte_api.const import APIVERSION
+
+
+def test_json_payload_preserves_backslashes_in_encoded_credentials():
+    client = EDClient("username", "password", {})
+    credential = client.encodeString(r"user\name")
+
+    payload = client._json_payload({"identifiant": credential})
+
+    assert json.loads(payload.removeprefix("data=")) == {
+        "identifiant": r"user\name",
+    }
 
 
 @pytest.mark.asyncio
@@ -73,3 +86,38 @@ async def test_get_espaces_travail_positional_swap():
             },
             payload="data={}",
         )
+
+
+@pytest.mark.asyncio
+async def test_get_grades_evaluations_serializes_quoted_school_year():
+    client = EDClient("username", "password", {})
+    school_year = "2025-2026's \"année\""
+
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = {"code": 200, "data": []}
+        await client.get_grades_evaluations("1234", school_year)
+
+    payload = mock_post.await_args.kwargs["payload"]
+    assert payload.startswith("data=")
+    assert json.loads(payload.removeprefix("data=")) == {
+        "anneeScolaire": school_year,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_lessons_serializes_quoted_dates():
+    client = EDClient("username", "password", {})
+    start_date = '2025-09-01 "début"'
+    end_date = "2025-09-07 d'école"
+
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = {"code": 200, "data": []}
+        await client.get_lessons("1234", start_date, end_date)
+
+    payload = mock_post.await_args.kwargs["payload"]
+    assert payload.startswith("data=")
+    assert json.loads(payload.removeprefix("data=")) == {
+        "dateDebut": start_date,
+        "dateFin": end_date,
+        "avecTrous": False,
+    }

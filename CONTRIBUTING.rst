@@ -76,15 +76,13 @@ Ready to contribute? Here's how to set up `ecoledirecte_api` for local developme
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+5. When you're done making changes, check that your changes pass Ruff and the
+   tests::
 
-    $ make lint
-    $ make test
-    Or
-    $ make test-all
+    $ poetry run ruff check src tests
+    $ poetry run pytest
 
-   To get flake8 and tox, just pip install them into your virtualenv.
+   Ruff is included in the development dependencies installed by Poetry.
 
 6. Commit your changes and push your branch to GitHub::
 
