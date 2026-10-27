@@ -14,7 +14,7 @@
     // Use 'forwardPorts' to make a list of ports inside the container available locally.
     // "forwardPorts": [],
     // Use 'postCreateCommand' to run commands after the container is created.
-    "postCreateCommand": "poetry config virtualenvs.in-project true && poetry install --with dev --no-interaction && . .venv/bin/activate",
+    "postCreateCommand": "poetry config virtualenvs.in-project true && poetry install --with dev --no-interaction",
     // Configure tool-specific properties.
     "customizations": {
         "vscode": {
@@ -23,7 +23,8 @@
                 "charliermarsh.ruff"
             ],
             "settings": {
-                "python.defaultInterpreterPath": "./.venv/bin/python"
+                "python.defaultInterpreterPath": "./.venv/bin/python",
+                "python.terminal.activateEnvironment": true
             }
         }
     }
