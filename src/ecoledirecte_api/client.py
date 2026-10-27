@@ -143,7 +143,7 @@ class EDClient:
         if "GTK" in resp.cookies:
             self._session.headers.update({"x-gtk": resp.cookies["GTK"].value})
             return
-        raise GTKException("Unable to get GTK value from server.")
+        raise GTKException(message="Unable to get GTK value from server.")
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
@@ -195,17 +195,17 @@ class EDClient:
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {
                 response.content}"
-            raise QCMException(msg) from ex
+            raise QCMException(message=msg) from ex
 
         if json_resp["code"] != ED_OK:
-            raise QCMException(json_resp)
+            raise QCMException(message=json_resp)
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
             self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
 
-        raise QCMException(json_resp)
+        raise QCMException(message=json_resp)
 
     async def __post_qcm_connexion__(self, proposition: str) -> dict:
         """Renvoyer la réponse du QCM donné."""
@@ -222,7 +222,7 @@ class EDClient:
             self.token = response.headers["x-token"]
             self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
-        raise QCMException(json_resp)
+        raise QCMException(message=json_resp)
 
     def on_new_question(self, callback):
         if self.callbacks is None:
@@ -315,7 +315,7 @@ class EDClient:
 
                 if try_login == 0:
                     msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
-                    raise QCMException(msg)
+                    raise QCMException(message=msg)
 
         if self.cn is not None and self.cv is not None:
             await self.__get_gtk__()
@@ -380,7 +380,11 @@ class EDClient:
             result = await response.text()
 
             if response.status >= 500 and response.status < 600:
-                raise ServiceUnavailableException(result) from error
+                raise ServiceUnavailableException(
+                    path=path,
+                    status=response.status,
+                    message=result,
+                ) from error
 
             raise EcoleDirecteException(
                 path=path,

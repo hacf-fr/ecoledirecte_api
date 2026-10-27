@@ -6,11 +6,11 @@ class BaseEcoleDirecteException(Exception):
 
     def __init__(
         self,
-        path: str,
-        params: dict | None = None,
+        path: str | None = None,
+        params: dict[str, Any] | None = None,
         payload: Any | None = None,
-        status: str | None = None,
-        message: str | None = None,
+        status: int | str | None = None,
+        message: object | None = None,
     ) -> None:
         """
         Constructor
@@ -18,9 +18,22 @@ class BaseEcoleDirecteException(Exception):
         :param path: the path of the API endpoint
         :param params: the parameters of the API endpoint
         :param payload: the payload of the API endpoint
+        :param status: the HTTP status code
         :param message: the message of the exception
         """
-        self.message = f"Error occurred while calling [{path}] with params [{params}] and payload [{payload}] - [{status}]{message}"
+        if path is None:
+            self.message = str(message) if message is not None else "Ecole Directe error."
+        else:
+            self.message = (
+                f"Error occurred while calling [{path}] with params [{params}] "
+                f"and payload [{payload}]"
+            )
+            if status is not None:
+                self.message += f" - status [{status}]"
+            if message is not None:
+                self.message += f": {message}"
+
+        super().__init__(self.message)
 
 
 class EcoleDirecteException(BaseEcoleDirecteException):
