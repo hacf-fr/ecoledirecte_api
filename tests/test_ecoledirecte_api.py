@@ -1,8 +1,26 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from ecoledirecte_api.client import EDClient
+from ecoledirecte_api.client import EDClient, relogin
 from ecoledirecte_api.const import APIVERSION
+
+
+@pytest.mark.asyncio
+async def test_relogin_callback_freshly_authenticates():
+    client = EDClient("username", "password", {})
+    client.token = "expired-token"
+    client.cookie_jar = object()
+    client.cn = "cn"
+    client.cv = "cv"
+
+    with patch.object(client, "login", new_callable=AsyncMock) as mock_login:
+        await relogin({"args": (client,)})
+
+    mock_login.assert_awaited_once_with()
+    assert client.token is None
+    assert client.cookie_jar is None
+    assert client.cn == "cn"
+    assert client.cv == "cv"
 
 
 @pytest.mark.asyncio
