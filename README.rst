@@ -34,6 +34,13 @@ Installation
 
    $ pip install ecoledirecte
 
+Python compatibility
+--------------------
+
+This package requires Python 3.14 or later, below Python 4.0. This minimum is
+intentional: the package is primarily used by Home Assistant and follows its
+Python compatibility requirements.
+
 Getting started
 ---------------
 

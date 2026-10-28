@@ -75,7 +75,9 @@ Ready to contribute? Here's how to set up `ecoledirecte_api` for local developme
 
    Now you can make your changes locally.
 
-5. The project currently supports Python 3.14 and later versions below 4.0.
+5. The project requires Python 3.14 or later, below Python 4.0. This minimum is
+   intentional because the package follows Home Assistant's Python compatibility
+   requirements; do not lower it independently of Home Assistant.
    Run the configured linter, type checker, and tests before submitting::
 
     $ poetry run ruff check src tests
@@ -102,8 +104,9 @@ Before you submit a pull request, check that it meets these guidelines:
 2. If the pull request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring, and add the
    feature to the list in README.rst.
-3. Ensure the changes are compatible with the supported Python versions
-   (currently Python 3.14 or later, below 4.0) and that the checks above pass.
+3. Ensure the changes are compatible with Python 3.14 or later, below 4.0, and
+   that the checks above pass. Keep this minimum aligned with Home Assistant's
+   Python compatibility requirements.
 
 Tips
 ----
