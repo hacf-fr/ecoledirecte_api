@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -31,11 +31,11 @@ async def test_api_methods_use_configured_version():
     sondages_call = mock_post.await_args_list[8]
     assert sondages_call.kwargs["path"] == "/rdt/sondages.awp?v=custom-version"
 
-    with patch.object(client, "_EDClient__post", new_callable=MagicMock) as mock_post:
+    with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
         await client.get_classe("1234")
 
-    assert len(mock_post.call_args_list) == 2
+    assert mock_post.await_count == 2
     assert all(
         call.kwargs["params"]["v"] == "custom-version"
-        for call in mock_post.call_args_list
+        for call in mock_post.await_args_list
     )
