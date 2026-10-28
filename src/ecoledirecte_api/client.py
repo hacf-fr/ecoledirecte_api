@@ -98,7 +98,8 @@ class EDClient:
         """Create a new aiohttp client session."""
 
         LOGGER.debug(
-            "Creating new ClientSession with cookies: [%s]", self.cookie_jar
+            "Creating new ClientSession; cookies configured: %s",
+            self.cookie_jar is not None,
         )
 
         self._session = ClientSession(
@@ -147,9 +148,7 @@ class EDClient:
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
-        LOGGER.debug(
-            f"get_token - payload: [{payload}]"
-        )
+        LOGGER.debug("get_token request: credentials submitted")
         response = await self._session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
@@ -163,7 +162,7 @@ class EDClient:
             bypassMFA=True,
         )
         json = await response.json(content_type=None)
-        LOGGER.debug(f"get_token json response: {json}")
+        LOGGER.debug("get_token response: code=%s", json.get("code"))
 
         self.token = response.headers["x-token"]
         self._session.headers.update({"x-token": self.token})
@@ -191,7 +190,10 @@ class EDClient:
         )
         try:
             json_resp = await response.json(content_type=None)
-            LOGGER.debug(f"get_qcm_connexion={json_resp}]")
+            LOGGER.debug(
+                "get_qcm_connexion response: code=%s",
+                json_resp.get("code"),
+            )
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {
                 response.content}"
@@ -209,7 +211,7 @@ class EDClient:
 
     async def __post_qcm_connexion__(self, proposition: str) -> dict:
         """Renvoyer la réponse du QCM donné."""
-        LOGGER.debug(f"__post_qcm_connexion__ proposition=[{proposition}]")
+        LOGGER.debug("Submitting QCM response")
         response = await self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
@@ -306,7 +308,7 @@ class EDClient:
 
                     self.qcm_json[question] = rep
                     if self.callbacks is not None and "new_question" in self.callbacks:
-                        LOGGER.info(f"callback new_question : [{question}]")
+                        LOGGER.info("callback new_question")
                         for callback in self.callbacks["new_question"]:
                             # wait for event to be handled
                             await callback(self.qcm_json)
