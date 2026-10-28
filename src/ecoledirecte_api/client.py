@@ -98,7 +98,8 @@ class EDClient:
         """Create a new aiohttp client session."""
 
         LOGGER.debug(
-            "Creating new ClientSession with cookies: [%s]", self.cookie_jar
+            "Creating new ClientSession; cookies configured: %s",
+            self.cookie_jar is not None,
         )
 
         self._session = ClientSession(
@@ -143,13 +144,11 @@ class EDClient:
         if "GTK" in resp.cookies:
             self._session.headers.update({"x-gtk": resp.cookies["GTK"].value})
             return
-        raise GTKException("Unable to get GTK value from server.")
+        raise GTKException(message="Unable to get GTK value from server.")
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
-        LOGGER.debug(
-            f"get_token - payload: [{payload}]"
-        )
+        LOGGER.debug("get_token request: credentials submitted")
         response = await self._session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
@@ -163,7 +162,7 @@ class EDClient:
             bypassMFA=True,
         )
         json = await response.json(content_type=None)
-        LOGGER.debug(f"get_token json response: {json}")
+        LOGGER.debug("get_token response: code=%s", json.get("code"))
 
         self.token = response.headers["x-token"]
         self._session.headers.update({"x-token": self.token})
@@ -191,25 +190,28 @@ class EDClient:
         )
         try:
             json_resp = await response.json(content_type=None)
-            LOGGER.debug(f"get_qcm_connexion={json_resp}]")
+            LOGGER.debug(
+                "get_qcm_connexion response: code=%s",
+                json_resp.get("code"),
+            )
         except Exception as ex:
             msg = f"Error with URL:[{f'{self.server_endpoint}/connexion/doubleauth.awp'}]: {
                 response.content}"
-            raise QCMException(msg) from ex
+            raise QCMException(message=msg) from ex
 
         if json_resp["code"] != ED_OK:
-            raise QCMException(json_resp)
+            raise QCMException(message=json_resp)
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
             self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
 
-        raise QCMException(json_resp)
+        raise QCMException(message=json_resp)
 
     async def __post_qcm_connexion__(self, proposition: str) -> dict:
         """Renvoyer la réponse du QCM donné."""
-        LOGGER.debug(f"__post_qcm_connexion__ proposition=[{proposition}]")
+        LOGGER.debug("Submitting QCM response")
         response = await self._session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
@@ -222,7 +224,7 @@ class EDClient:
             self.token = response.headers["x-token"]
             self._session.headers.update({"x-token": self.token})
             return json_resp["data"]
-        raise QCMException(json_resp)
+        raise QCMException(message=json_resp)
 
     def on_new_question(self, callback):
         if self.callbacks is None:
@@ -306,7 +308,7 @@ class EDClient:
 
                     self.qcm_json[question] = rep
                     if self.callbacks is not None and "new_question" in self.callbacks:
-                        LOGGER.info(f"callback new_question : [{question}]")
+                        LOGGER.info("callback new_question")
                         for callback in self.callbacks["new_question"]:
                             # wait for event to be handled
                             await callback(self.qcm_json)
@@ -315,7 +317,7 @@ class EDClient:
 
                 if try_login == 0:
                     msg = "Vérifiez le qcm de connexion, le nombre d'essais est épuisé."
-                    raise QCMException(msg)
+                    raise QCMException(message=msg)
 
         if self.cn is not None and self.cv is not None:
             await self.__get_gtk__()
@@ -376,7 +378,11 @@ class EDClient:
             result = await response.text()
 
             if response.status >= 500 and response.status < 600:
-                raise ServiceUnavailableException(result) from error
+                raise ServiceUnavailableException(
+                    path=path,
+                    status=response.status,
+                    message=result,
+                ) from error
 
             raise EcoleDirecteException(
                 path=path,
@@ -501,7 +507,7 @@ class EDClient:
                 "itemsPerPage": "100",
                 "getAll": "0",
                 "verbe": "get",
-                "v": APIVERSION,
+                "v": self.api_version,
             },
             payload=payload,
         )
@@ -521,7 +527,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte/{date}.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
 
@@ -536,7 +542,7 @@ class EDClient:
         LOGGER.debug("get_homeworks: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
 
@@ -568,7 +574,7 @@ class EDClient:
             }
         return await self.__post(
             path=f"/Eleves/{eleve_id}/cahierdetexte.awp",
-            params={"verbe": "put", "v": APIVERSION},
+            params={"verbe": "put", "v": self.api_version},
             payload=self._json_payload(data),
         )
 
@@ -591,7 +597,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/eleves/{eleve_id}/notes.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({"anneeScolaire": annee_scolaire}),
         )
 
@@ -606,7 +612,7 @@ class EDClient:
         LOGGER.debug("get_vie_scolaire: eleve_id=%s", eleve_id)
         return await self.__post(
             path=f"/eleves/{eleve_id}/viescolaire.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
 
@@ -626,7 +632,7 @@ class EDClient:
         )
         return await self.__post(
             path=f"/E/{eleve_id}/emploidutemps.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload(
                 {
                     "dateDebut": date_debut,
@@ -647,7 +653,7 @@ class EDClient:
         LOGGER.debug("get_all_wallet_balances")
         return await self.__post(
             path="/comptes/sansdetails.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
 
@@ -661,8 +667,8 @@ class EDClient:
         """Get sondages."""
         LOGGER.debug("get_sondages")
         return await self.__post(
-            path=f"/rdt/sondages.awp?v={APIVERSION}",
-            params={"v": APIVERSION},
+            path=f"/rdt/sondages.awp?v={self.api_version}",
+            params={"v": self.api_version},
             payload=self._json_payload({}),
         )
 
@@ -691,7 +697,7 @@ class EDClient:
         )
         return await self.__post(
             path="/edforms.awp",
-            params={"verbe": "list", "v": APIVERSION},
+            params={"verbe": "list", "v": self.api_version},
             payload=payload,
         )
 
@@ -706,14 +712,14 @@ class EDClient:
         LOGGER.debug("get_classe: classe_id=%s", classe_id)
         json_resp = self.__post(
             path=f"/Classes/{classe_id}/viedelaclasse.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
         LOGGER.debug("get_classeV1: [%s]", json_resp)
 
         json_resp = self.__post(
             path=f"/R/{classe_id}/viedelaclasse.awp",
-            params={"verbe": "get", "v": APIVERSION},
+            params={"verbe": "get", "v": self.api_version},
             payload=self._json_payload({}),
         )
         LOGGER.debug("get_classeV2: [%s]", json_resp)

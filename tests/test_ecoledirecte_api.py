@@ -5,6 +5,29 @@ from unittest.mock import AsyncMock, patch
 
 from ecoledirecte_api.client import EDClient, relogin
 from ecoledirecte_api.const import APIVERSION
+from ecoledirecte_api.exceptions import EcoleDirecteException, QCMException
+
+
+def test_exception_message_without_api_path():
+    exception = QCMException(message="Invalid QCM response")
+
+    assert exception.message == "Invalid QCM response"
+    assert str(exception) == "Invalid QCM response"
+
+
+def test_exception_message_includes_api_context():
+    exception = EcoleDirecteException(
+        path="/login.awp",
+        params={"v": "1"},
+        payload="data={}",
+        status=401,
+        message="Unauthorized",
+    )
+
+    assert str(exception) == (
+        "Error occurred while calling [/login.awp] with params [{'v': '1'}] "
+        "and payload [data={}] - status [401]: Unauthorized"
+    )
 
 
 def test_json_payload_preserves_backslashes_in_encoded_credentials():

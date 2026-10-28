@@ -32,7 +32,7 @@ packages = [
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
 ruff = "^0.15.8"
-pytest = "^8.0.0"
+pytest = "^9.0.3"
 pytest-asyncio = "^0.23.0"
 
 [tool.mypy]
