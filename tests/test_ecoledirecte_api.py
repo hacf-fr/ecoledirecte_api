@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from aiohttp import CookieJar
+
 from ecoledirecte_api.client import EDClient, relogin
 from ecoledirecte_api.const import APIVERSION
 from ecoledirecte_api.exceptions import EcoleDirecteException, QCMException
@@ -32,7 +34,7 @@ def test_exception_message_includes_api_context():
 async def test_relogin_callback_freshly_authenticates():
     client = EDClient("username", "password", {})
     client.token = "expired-token"
-    client.cookie_jar = object()
+    client.cookie_jar = CookieJar()
     client.cn = "cn"
     client.cv = "cv"
 

@@ -19,6 +19,7 @@ from aiohttp import (
     ServerDisconnectedError,
     StreamReader,
 )
+import aiohttp.abc as _aiohttp_abc
 
 from .const import APIURL, APIVERSION, ED_MFA_REQUIRED, ED_NODATA, ED_OK
 from .exceptions import (
@@ -53,7 +54,7 @@ class EDClient:
     cn: str | None = None
     cv: str | None = None
     token_2fa: str | None = None
-    cookie_jar: Any = None
+    cookie_jar: _aiohttp_abc.AbstractCookieJar | None = None
 
     def __init__(
         self,
