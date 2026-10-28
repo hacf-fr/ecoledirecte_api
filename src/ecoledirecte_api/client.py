@@ -949,7 +949,7 @@ class EDClient:
                 "verbe": "get",
                 "v": self.api_version,
             },
-            payload=self._json_payload({"idEleve": int(eleve_id)}),
+            payload=self._json_payload({"idEleve": str(eleve_id)}),
         )
 
     @backoff.on_exception(
