@@ -16,13 +16,16 @@ Ecole Directe API
 A fully async and easy to use API client for the Ecole Directe API.
 This package is mainly used by Home Assistant, to offer the Ecole Directe integration. If you want to use this package in your own project, you can look at the `Home Assistant Code`_ for more examples.
 
-* Free software: GNU General Public License v3
+* License: GNU Lesser General Public License v3 or later (LGPL-3.0-or-later)
 * Documentation: https://ecoledirecte-api.readthedocs.io.
 
 Features
 --------
 
-* TODO
+* Asynchronous client for authenticating with the Ecole Directe API.
+* Access to messages, homework, grades, school-life records, and timetables.
+* Access to account services such as wallet balances, surveys, forms, and workspaces.
+* Automatic re-authentication for supported operations after session errors.
 
 Installation
 ------------
@@ -35,56 +38,23 @@ Getting started
 ---------------
 
 .. code:: python
-        
+
     import asyncio
-    import json
-    import logging
-    from pathlib import Path
+
     from ecoledirecte_api.client import EDClient
-    from ecoledirecte_api.exceptions import BaseEcoleDirecteException
-    
-    logger = logging.getLogger(__name__)
-    
-    async def save_question(qcm_json):
-        """Save question to file."""
-        with Path("qcm.json").open(
-            "w",
-            encoding="utf-8",
-        ) as fp:
-            json.dump(qcm_json, fp, indent=4, ensure_ascii=False)
-        logger.info("Saved question to file", qcm_json)
-    
-    
+
     async def main():
-        logging.basicConfig(filename="myapp.log", level=logging.DEBUG)
-        logger.info("Started")
-        try:
-            qcm_json = {}
-            with Path("qcm.json").open(
-                "r",
-                encoding="utf-8",
-            ) as fp:
-                qcm_json = json.load(fp)
-    
-                async with EDClient(
-                    "user", "password", qcm_json
-                ) as client:
-                    client.on_new_question(save_question)
-                    l = await client.login()
-                    logger.info(f"l= {l}")
-                    logger.info(f"Logged in as {client.username}")
-                    logger.info("Finished")
-                    await client.close()
-        except BaseEcoleDirecteException as e:
-            logger.exception(e.message)
-            return
-        except Exception as e:
-            logger.exception(e)
-            return
-    
+        async with EDClient("username", "password", {}) as client:
+            await client.login()
+            homework = await client.get_homeworks("student_id")
+            print(homework)
+
     if __name__ == "__main__":
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+        asyncio.run(main())
+
+Replace the credentials and student ID with your own. If your account requires
+QCM verification, provide the corresponding answers in the client's ``qcm_json``
+argument.
 
 Development - DevContainer (recommended)
 ----------------------------------------
@@ -100,4 +70,3 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
 .. _`Home Assistant Code`: https://github.com/hacf-fr/hass-ecoledirecte
-
