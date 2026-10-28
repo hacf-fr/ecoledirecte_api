@@ -88,9 +88,6 @@ Ready to contribute? Here's how to set up `ecoledirecte_api` for local developme
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-   The CI workflow runs Ruff, mypy, and the test suite on branch pushes and
-   pull requests using Python 3.14.
-
 7. Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
