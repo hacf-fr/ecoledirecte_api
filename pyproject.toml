@@ -42,7 +42,12 @@ warn_unreachable = true
 warn_no_return = true
 
 [[tool.mypy.overrides]]
-module = "tests.*"
+module = [
+    "test_api_version",
+    "test_client_behavior",
+    "test_client_logging",
+    "test_ecoledirecte_api",
+]
 allow_untyped_defs = true
 disable_error_code = "attr-defined"
 

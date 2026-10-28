@@ -1,8 +1,10 @@
 import asyncio
 from json import JSONDecodeError
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from aiohttp import ClientTimeout
 
 from ecoledirecte_api.client import EDClient
 from ecoledirecte_api.const import ED_MFA_REQUIRED, ED_NODATA, ED_OK
@@ -16,12 +18,12 @@ from ecoledirecte_api.exceptions import (
 
 
 def make_response(
-    json_result=None,
+    json_result: Any = None,
     *,
-    status=200,
-    json_error=None,
-    text="",
-):
+    status: int = 200,
+    json_error: Exception | None = None,
+    text: str = "",
+) -> Mock:
     response = Mock(status=status)
     if json_error is not None:
         response.json = AsyncMock(side_effect=json_error)
@@ -37,15 +39,24 @@ async def test_login_sends_encoded_credentials_after_getting_gtk():
     def create_session():
         client._session = Mock(headers={})
 
-    client.__get_new_client__ = Mock(side_effect=create_session)
-    client.__get_gtk__ = AsyncMock()
-    client.__get_token__ = AsyncMock(return_value={"code": ED_OK})
-
-    result = await client.login()
+    with (
+        patch.object(
+            client, "__get_new_client__", side_effect=create_session
+        ) as mock_new_client,
+        patch.object(client, "__get_gtk__", new_callable=AsyncMock) as mock_gtk,
+        patch.object(
+            client,
+            "__get_token__",
+            new_callable=AsyncMock,
+            return_value={"code": ED_OK},
+        ) as mock_token,
+    ):
+        result = await client.login()
 
     assert result == {"code": ED_OK}
-    client.__get_gtk__.assert_awaited_once_with()
-    client.__get_token__.assert_awaited_once_with(
+    mock_new_client.assert_called_once_with()
+    mock_gtk.assert_awaited_once_with()
+    mock_token.assert_awaited_once_with(
         'data={"identifiant":"%C3%A9l%C3%A8ve%201", '
         '"motdepasse":"p%40ss%20word", "isReLogin": false}'
     )
@@ -64,7 +75,7 @@ async def test_get_gtk_stores_cookie_in_session_headers():
         "https://api.test/login.awp",
         params={"v": client.api_version, "gtk": 1},
         data=None,
-        timeout=120,
+        timeout=ClientTimeout(total=120),
     )
     assert client._session.headers["x-gtk"] == "gtk-cookie"
 

@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import base64
 import logging
-import urllib
 from collections.abc import Mapping
 from json import JSONDecodeError
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Awaitable, Callable, Self, cast
+from urllib.parse import quote
 
 import backoff
 from aiohttp import (
     ClientConnectorError,
     ClientResponse,
     ClientSession,
+    ClientTimeout,
     ServerDisconnectedError,
     StreamReader,
 )
@@ -32,6 +33,9 @@ from .exceptions import (
 
 LOGGER = logging.getLogger(__name__)
 
+JsonResponse = dict[str, Any]
+QuestionCallback = Callable[[dict[str, list[str]]], Awaitable[None]]
+
 
 async def relogin(invocation: Mapping[str, Any]) -> None:
     LOGGER.debug("Re-authenticating...")
@@ -43,18 +47,19 @@ class EDClient:
 
     username: str
     password: str
-    _session: ClientSession
-    callbacks = None
-    token: str = None
-    cn: str = None
-    cv: str = None
+    _session: ClientSession | None
+    callbacks: dict[str, list[QuestionCallback]] | None = None
+    token: str | None = None
+    cn: str | None = None
+    cv: str | None = None
+    token_2fa: str | None = None
     cookie_jar: Any = None
 
     def __init__(
         self,
         username: str,
         password: str,
-        qcm_json: dict,
+        qcm_json: dict[str, list[str]],
         server_endpoint: str = APIURL,
         api_version: str = APIVERSION,
     ) -> None:
@@ -73,7 +78,7 @@ class EDClient:
         self.qcm_json = qcm_json
         self.server_endpoint = server_endpoint
         self.api_version = api_version
-        self._session: ClientSession = None
+        self._session = None
         LOGGER.debug("EDClient initialized.")
 
     async def __aenter__(self) -> Self:
@@ -89,10 +94,16 @@ class EDClient:
 
     async def close(self) -> None:
         """Close the session."""
-        if self._session is not None:
-            await self._session.close()
+        session = self._session
+        if session is not None:
+            await session.close()
             self._session = None
         LOGGER.debug("_session closed (or none).")
+
+    def _require_session(self) -> ClientSession:
+        if self._session is None:
+            raise NotAuthenticatedException(message="No active API session.")
+        return self._session
 
     def __get_new_client__(self) -> None:
         """Create a new aiohttp client session."""
@@ -102,7 +113,7 @@ class EDClient:
             self.cookie_jar is not None,
         )
 
-        self._session = ClientSession(
+        session = ClientSession(
             headers={
                 "accept": "application/json, text/plain, */*",
                 "accept-encoding": "gzip, deflate, br, zstd",
@@ -125,35 +136,38 @@ class EDClient:
             # MODIFIÉ: Passe de True à False pour éviter la lecture bloquante du fichier .netrc
             trust_env=False,
         )
+        self._session = session
 
         if self.token is not None:
-            self._session.headers.update({"x-token": self.token})
+            session.headers.update({"x-token": self.token})
 
     async def __get_gtk__(self) -> None:
         """Get the gtk value from the server."""
         LOGGER.debug("getting gtk for cookies...")
+        session = self._require_session()
         # first call to get a cookie
-        if "x-gtk" in self._session.headers:
-            self._session.headers.pop("x-gtk")
-        resp = await self._session.get(
+        if "x-gtk" in session.headers:
+            session.headers.pop("x-gtk")
+        resp = await session.get(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version, "gtk": 1},
             data=None,
-            timeout=120,
+            timeout=ClientTimeout(total=120),
         )
         if "GTK" in resp.cookies:
-            self._session.headers.update({"x-gtk": resp.cookies["GTK"].value})
+            session.headers.update({"x-gtk": resp.cookies["GTK"].value})
             return
         raise GTKException(message="Unable to get GTK value from server.")
 
     async def __get_token__(self, payload: str) -> Any:
         """Get the token value from the server."""
         LOGGER.debug("get_token request: credentials submitted")
-        response = await self._session.post(
+        session = self._require_session()
+        response = await session.post(
             f"{self.server_endpoint}/login.awp",
             params={"v": self.api_version},
             data=payload,
-            timeout=120,
+            timeout=ClientTimeout(total=120),
         )
         await self.check_response(
             response=response,
@@ -165,28 +179,29 @@ class EDClient:
         LOGGER.debug("get_token response: code=%s", json.get("code"))
 
         self.token = response.headers["x-token"]
-        self._session.headers.update({"x-token": self.token})
+        session.headers.update({"x-token": self.token})
 
         if "2FA-Token" in response.headers:
             self.token_2fa = response.headers["2FA-Token"]
-            self._session.headers.update({"2FA-Token": self.token_2fa})
+            session.headers.update({"2FA-Token": self.token_2fa})
         else:
             LOGGER.debug(
                 "get_token: no 2FA-Token header in response, skipping.")
 
-        if "x-gtk" in self._session.headers:
-            self._session.headers.pop("x-gtk")
+        if "x-gtk" in session.headers:
+            session.headers.pop("x-gtk")
 
-        self.cookie_jar = self._session.cookie_jar
+        self.cookie_jar = session.cookie_jar
         return json
 
-    async def __get_qcm_connexion__(self) -> dict:
+    async def __get_qcm_connexion__(self) -> JsonResponse:
         """Obtenir le QCM donné lors d'une connexion à partir d'un nouvel appareil."""
-        response = await self._session.post(
+        session = self._require_session()
+        response = await session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "get", "v": self.api_version},
             data="data={}",
-            timeout=120,
+            timeout=ClientTimeout(total=120),
         )
         try:
             json_resp = await response.json(content_type=None)
@@ -204,29 +219,30 @@ class EDClient:
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
-            return json_resp["data"]
+            session.headers.update({"x-token": self.token})
+            return cast(JsonResponse, json_resp["data"])
 
         raise QCMException(message=json_resp)
 
-    async def __post_qcm_connexion__(self, proposition: str) -> dict:
+    async def __post_qcm_connexion__(self, proposition: str) -> JsonResponse:
         """Renvoyer la réponse du QCM donné."""
         LOGGER.debug("Submitting QCM response")
-        response = await self._session.post(
+        session = self._require_session()
+        response = await session.post(
             url=f"{self.server_endpoint}/connexion/doubleauth.awp",
             params={"verbe": "post", "v": self.api_version},
             data=f'data={{"choix": "{proposition}"}}',
-            timeout=120,
+            timeout=ClientTimeout(total=120),
         )
         json_resp = await response.json(content_type=None)
 
         if "data" in json_resp:
             self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
-            return json_resp["data"]
+            session.headers.update({"x-token": self.token})
+            return cast(JsonResponse, json_resp["data"])
         raise QCMException(message=json_resp)
 
-    def on_new_question(self, callback):
+    def on_new_question(self, callback: QuestionCallback) -> None:
         if self.callbacks is None:
             self.callbacks = {}
             self.callbacks["new_question"] = [callback]
@@ -245,8 +261,9 @@ class EDClient:
         """Authenticate and create an API session allowing access to the other operations."""
         LOGGER.debug("Enter login...")
 
-        if self._session is not None:
-            await self._session.close()
+        session = self._session
+        if session is not None:
+            await session.close()
         if self.cn is None or self.cv is None:
             self.cn = None
             self.cv = None
@@ -346,32 +363,35 @@ class EDClient:
         if self._session is None:
             await self.login()
 
-        response = await self._session.get(
+        response = await self._require_session().get(
             f"{self.server_endpoint}{path}",
         )
         await self.check_response(response=response, path=path)
         return await response.json(content_type=None)
 
     async def __post(
-        self, path: str, params: dict | None = None, payload: Any | None = None
-    ) -> Any:
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        payload: Any | None = None,
+    ) -> JsonResponse:
         """Make a POST request to the Ecole Directe API"""
         if self._session is None:
             await self.login()
 
-        response = await self._session.post(
+        response = await self._require_session().post(
             url=f"{self.server_endpoint}{path}",
             params=params,
             data=payload,
         )
         await self.check_response(response, path, params, payload)
-        return await response.json(content_type=None)
+        return cast(JsonResponse, await response.json(content_type=None))
 
     @staticmethod
     async def check_response(
         response: ClientResponse,
         path: str,
-        params: dict | None = None,
+        params: dict[str, Any] | None = None,
         payload: Any | None = None,
         bypassMFA: bool = False,
     ) -> None:
@@ -451,10 +471,12 @@ class EDClient:
             path=path, params=params, payload=payload, message=result
         )
 
-    def encodeString(self, string):
-        return urllib.parse.quote(string, safe="~()*!.'%\\").replace("\\", "\\\\")
+    def encodeString(self, string: str) -> str:
+        return quote(string, safe="~()*!.'%\\").replace("\\", "\\\\")
 
-    def encodeBody(self, dictionnary, isRecursive=False):
+    def encodeBody(
+        self, dictionnary: Mapping[str, Any], isRecursive: bool = False
+    ) -> str:
         body = ""
         for key in dictionnary:
             if isRecursive:
@@ -478,7 +500,7 @@ class EDClient:
     )
     async def get_messages(
         self, family_id: str | None, eleve_id: str | None, annee_scolaire: str
-    ) -> dict:
+    ) -> JsonResponse:
         """Get messages from Ecole Directe."""
         LOGGER.debug(
             "get_messages: family_id=%s, eleve_id=%s, annee_scolaire=%s",
@@ -517,7 +539,9 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_homeworks_by_date(self, eleve_id: str, date: str) -> dict:
+    async def get_homeworks_by_date(
+        self, eleve_id: str, date: str
+    ) -> JsonResponse:
         """Get homeworks by date."""
         LOGGER.debug(
             "get_homeworks_by_date: eleve_id=%s, date=%s",
@@ -536,7 +560,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_homeworks(self, eleve_id: str) -> dict:
+    async def get_homeworks(self, eleve_id: str) -> JsonResponse:
         """Get homeworks."""
         LOGGER.debug("get_homeworks: eleve_id=%s", eleve_id)
         return await self.__post(
@@ -553,7 +577,7 @@ class EDClient:
     )
     async def post_homework(
         self, eleve_id: str, devoir_id: int, effectue: bool
-    ) -> dict:
+    ) -> JsonResponse:
         """Post homework."""
         LOGGER.debug(
             "post_homework: eleve_id=%s, devoir_id=%s, effectue=%s",
@@ -589,7 +613,7 @@ class EDClient:
         self,
         eleve_id: str,
         annee_scolaire: str,
-    ) -> dict:
+    ) -> JsonResponse:
         """Get grades."""
         LOGGER.debug(
             "get_grades_evaluations: eleve_id=%s, annee_scolaire=%s",
@@ -608,7 +632,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_vie_scolaire(self, eleve_id: str) -> dict:
+    async def get_vie_scolaire(self, eleve_id: str) -> JsonResponse:
         """Get vie scolaire (absences, retards, etc.)."""
         LOGGER.debug("get_vie_scolaire: eleve_id=%s", eleve_id)
         return await self.__post(
@@ -623,7 +647,9 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_lessons(self, eleve_id: str, date_debut: str, date_fin: str) -> dict:
+    async def get_lessons(
+        self, eleve_id: str, date_debut: str, date_fin: str
+    ) -> JsonResponse:
         """Get lessons."""
         LOGGER.debug(
             "get_lessons: eleve_id=%s, date_debut=%s, date_fin=%s",
@@ -645,7 +671,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_all_wallet_balances(self) -> dict:
+    async def get_all_wallet_balances(self) -> JsonResponse:
         """Get all wallet balances for the account."""
         LOGGER.debug("get_all_wallet_balances")
         return await self.__post(
@@ -660,7 +686,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_sondages(self) -> dict:
+    async def get_sondages(self) -> JsonResponse:
         """Get sondages."""
         LOGGER.debug("get_sondages")
         return await self.__post(
@@ -677,7 +703,7 @@ class EDClient:
     )
     async def get_formulaires(
         self, annee_forms: str, account_type: str, id_entity: str
-    ) -> dict:
+    ) -> JsonResponse:
         """Get formulaires."""
         LOGGER.debug(
             "get_formulaires: annee_forms=%s, account_type=%s, id_entity=%s",
@@ -729,7 +755,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def switch_account(self, target_id_login: int) -> dict:
+    async def switch_account(self, target_id_login: int) -> JsonResponse:
         """Switch the API session context to a different account.
 
         When a parent account is linked to multiple establishments,
@@ -746,19 +772,20 @@ class EDClient:
         if self._session is None:
             await self.login()
 
-        response = await self._session.post(
+        session = self._require_session()
+        response = await session.post(
             url=f"{self.server_endpoint}/renewtoken.awp",
             params={"verbe": "post", "v": self.api_version},
             data=f'data={{"idUser": {target_id_login}, "uuid": ""}}',
-            timeout=120,
+            timeout=ClientTimeout(total=120),
         )
         json_resp = await response.json(content_type=None)
 
         if "x-token" in response.headers:
             self.token = response.headers["x-token"]
-            self._session.headers.update({"x-token": self.token})
+            session.headers.update({"x-token": self.token})
 
-        return json_resp
+        return cast(JsonResponse, json_resp)
 
     @backoff.on_exception(
         backoff.expo,
@@ -770,7 +797,7 @@ class EDClient:
         self,
         user_id: str | int,
         account_type: str | int = 1,
-    ) -> dict:
+    ) -> JsonResponse:
         """Get workspaces (Mes espaces de travail).
 
         :param user_id: the user / eleve ID
@@ -806,7 +833,7 @@ class EDClient:
     async def get_espace_travail(self, espace_id: str | int,
                                  user_id: str | int,
                                  account_type: str
-                                 ) -> dict:
+                                 ) -> JsonResponse:
         """Get workspace (Mes espaces de travail).
 
         :param espace_id: the workspace ID
@@ -840,7 +867,7 @@ class EDClient:
     async def get_activites_espace_travail(self, espace_id: str | int,
                                            user_id: str | int,
                                            account_type: str,
-                                           ) -> dict:
+                                           ) -> JsonResponse:
         """Get activites for a workspace (Mes espaces de travail).
 
         :param espace_id: the workspace ID
@@ -875,7 +902,7 @@ class EDClient:
                                                         user_id: str | int,
                                                         account_type: str,
                                                         activityId: str,
-                                                        ) -> dict:
+                                                        ) -> JsonResponse:
         """Get details for a specific cloud activity in a workspace (Mes espaces de travail).
 
         :param espace_id: the workspace ID
@@ -907,7 +934,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_postits(self, espace_id: str | int) -> dict:
+    async def get_postits(self, espace_id: str | int) -> JsonResponse:
         """Get post-its.
 
         :param espace_id: the workspace ID
@@ -932,7 +959,7 @@ class EDClient:
         max_tries=2,
         on_backoff=relogin,
     )
-    async def get_menus(self, eleve_id: str | int) -> dict:
+    async def get_menus(self, eleve_id: str | int) -> JsonResponse:
         """Get menus.
 
         :param eleve_id: the student ID
@@ -972,7 +999,7 @@ class EDClient:
         if self._session is None:
             await self.login()
 
-        response = await self._session.post(
+        response = await self._require_session().post(
             url=f"{self.server_endpoint}/telechargement.awp",
             params={
                 "verbe": "get",

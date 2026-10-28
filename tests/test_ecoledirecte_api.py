@@ -40,18 +40,18 @@ async def test_relogin_callback_freshly_authenticates():
         await relogin({"args": (client,)})
 
     mock_login.assert_awaited_once_with()
-    assert client.token is None
+    assert getattr(client, "token") is None
     assert client.cookie_jar is None
     assert client.cn == "cn"
     assert client.cv == "cv"
 
 
 @pytest.mark.asyncio
-async def test_get_espaces_travail_default():
+async def test_get_espaces_travail_default_account_type():
     client = EDClient("username", "password", {})
     with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = {"code": 200, "data": []}
-        result = await client.get_all_espaces_travail()
+        result = await client.get_all_espaces_travail("3745")
         assert result == {"code": 200, "data": []}
         mock_post.assert_awaited_once_with(
             path="/1/3745/espacestravail.awp",
@@ -69,7 +69,7 @@ async def test_get_espaces_travail_custom():
     client = EDClient("username", "password", {})
     with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = {"code": 200, "data": []}
-        await client.get_all_espaces_travail(eleve_id="1234")
+        await client.get_all_espaces_travail(user_id="1234")
         mock_post.assert_awaited_once_with(
             path="/1/1234/espacestravail.awp",
             params={
@@ -82,13 +82,13 @@ async def test_get_espaces_travail_custom():
 
 
 @pytest.mark.asyncio
-async def test_get_espaces_travail_positional_swap():
+async def test_get_espaces_travail_account_type():
     client = EDClient("username", "password", {})
     with patch.object(client, "_EDClient__post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = {"code": 200, "data": []}
-        await client.get_all_espaces_travail(1, 3745)
+        await client.get_all_espaces_travail("3745", account_type="E")
         mock_post.assert_awaited_once_with(
-            path="/1/3745/espacestravail.awp",
+            path="/E/3745/espacestravail.awp",
             params={
                 "verbe": "get",
                 "typeModule": "espaceTravail",
