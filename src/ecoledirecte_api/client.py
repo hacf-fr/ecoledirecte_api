@@ -709,14 +709,14 @@ class EDClient:
     async def get_classe(self, classe_id: str) -> None:
         """Get classe."""
         LOGGER.debug("get_classe: classe_id=%s", classe_id)
-        json_resp = self.__post(
+        json_resp = await self.__post(
             path=f"/Classes/{classe_id}/viedelaclasse.awp",
             params={"verbe": "get", "v": self.api_version},
             payload="data={}",
         )
         LOGGER.debug("get_classeV1: [%s]", json_resp)
 
-        json_resp = self.__post(
+        json_resp = await self.__post(
             path=f"/R/{classe_id}/viedelaclasse.awp",
             params={"verbe": "get", "v": self.api_version},
             payload="data={}",
