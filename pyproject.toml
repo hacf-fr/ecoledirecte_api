@@ -49,7 +49,7 @@ module = [
     "test_ecoledirecte_api",
 ]
 allow_untyped_defs = true
-disable_error_code = "attr-defined"
+disable_error_code = "attr-defined, unreachable"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

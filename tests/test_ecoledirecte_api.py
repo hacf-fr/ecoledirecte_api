@@ -43,7 +43,7 @@ async def test_relogin_callback_freshly_authenticates():
 
     mock_login.assert_awaited_once_with()
     assert getattr(client, "token") is None
-    assert client.cookie_jar is None
+    assert getattr(client, "cookie_jar") is None
     assert client.cn == "cn"
     assert client.cv == "cv"
 
