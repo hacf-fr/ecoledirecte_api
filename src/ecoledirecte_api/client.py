@@ -847,8 +847,10 @@ class EDClient:
                 f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
             )
         LOGGER.debug(
-            "get_espaces_travail: espace_id=%s",
+            "get_espaces_travail: espace_id=%s, user_id=%s, account_type=%s",
             espace_id,
+            user_id,
+            account_type,
         )
         return await self.__post(
             path=f"/{account_type}/{user_id}/espacestravail/{espace_id}.awp",
@@ -881,8 +883,10 @@ class EDClient:
                 f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
             )
         LOGGER.debug(
-            "get_activites_espace_travail: espace_id=%s",
+            "get_activites_espace_travail: espace_id=%s, user_id=%s, account_type=%s",
             espace_id,
+            user_id,
+            account_type,
         )
         return await self.__post(
             path=f"/{account_type}/{user_id}/espacestravail/{espace_id}/activites.awp",
@@ -917,8 +921,11 @@ class EDClient:
                 f"Invalid account_type: {account_type}. Must be one of '1', 'E', or 'P'."
             )
         LOGGER.debug(
-            "get_details_cloudactivites_espace_travail: espace_id=%s",
+            "get_details_cloudactivites_espace_travail: espace_id=%s, user_id=%s, account_type=%s, activityId=%s",
             espace_id,
+            user_id,
+            account_type,
+            activityId
         )
         return await self.__post(
             path=f"/{account_type}/{user_id}/espacestravail/{espace_id}/{activityId}/cloudactivites.awp",
